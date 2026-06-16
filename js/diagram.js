@@ -281,9 +281,14 @@ function getSvgPoint(svg, clientX, clientY) {
 
 function buildDiagram(entities, relations) {
   const positionedEntities = layoutEntities(entities, relations);
+  const computedRels = computeRelations(positionedEntities, relations);
+  const viewBoxStr = computeViewBox(positionedEntities, computedRels);
+  const [vbX, vbY, vbW, vbH] = viewBoxStr.split(' ').map(Number);
   return {
     entities: positionedEntities,
     relations,
-    viewBox: computeViewBox(positionedEntities),
+    viewBox: viewBoxStr,
+    viewBoxWidth: vbW,
+    viewBoxHeight: vbH,
   };
 }

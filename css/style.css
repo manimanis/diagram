@@ -191,6 +191,20 @@ textarea:focus {
   color: #94a3b8;
 }
 
+.diagram-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px 8px 0 0;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
 .diagram-wrapper {
   flex: 1;
   overflow: auto;
@@ -200,9 +214,8 @@ textarea:focus {
 }
 
 .diagram-svg {
-  width: 100%;
-  min-height: 480px;
   display: block;
+  max-width: 100%;
 }
 
 .relation-line {

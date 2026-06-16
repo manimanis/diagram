@@ -54,8 +54,13 @@
         </div>
 
         <div v-else class="diagram-wrapper" ref="diagramWrapper">
+          <div class="diagram-toolbar">
+            <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg">Exporter SVG</button>
+          </div>
           <svg
             :viewBox="diagram.viewBox"
+            :width="diagram.viewBoxWidth"
+            :height="diagram.viewBoxHeight"
             class="diagram-svg"
             xmlns="http://www.w3.org/2000/svg"
           >

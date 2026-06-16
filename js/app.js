@@ -10,6 +10,8 @@ createApp({
     const entities = ref([]);
     const relations = ref([]);
     const viewBox = ref('');
+    const viewBoxWidth = ref(0);
+    const viewBoxHeight = ref(0);
     const error = ref('');
     const loading = ref(false);
     const dragState = ref(null);
@@ -17,7 +19,7 @@ createApp({
 
     const diagram = computed(() =>
       entities.value.length
-        ? { entities: entities.value, viewBox: viewBox.value }
+        ? { entities: entities.value, viewBox: viewBox.value, viewBoxWidth: viewBoxWidth.value, viewBoxHeight: viewBoxHeight.value }
         : null
     );
 
@@ -62,11 +64,69 @@ createApp({
         entities.value = built.entities;
         relations.value = built.relations;
         viewBox.value = built.viewBox;
+        viewBoxWidth.value = built.viewBoxWidth;
+        viewBoxHeight.value = built.viewBoxHeight;
       } catch (err) {
         error.value = err.message || 'Une erreur est survenue.';
       } finally {
         loading.value = false;
       }
+    }
+
+    function exportSvg() {
+      const svgEl = document.querySelector('.diagram-svg');
+      if (!svgEl) return;
+
+      const clone = svgEl.cloneNode(true);
+
+      // Supprimer les classes/interactions liées au drag
+      clone.querySelectorAll('.entity-group.dragging').forEach(g => g.classList.remove('dragging'));
+
+      // S'assurer que xmlns est présent
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+      // Ajouter les styles depuis les classes CSS en les inlineant dans un <style>
+      // On récupère les règles de la feuille de style du document
+      const styleRules = [];
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules || sheet.rules) {
+            // Ne garder que les règles qui concernent le SVG
+            if (rule.selectorText && rule.selectorText.includes('diagram-svg') ||
+                rule.selectorText && rule.selectorText.includes('relation') ||
+                rule.selectorText && rule.selectorText.includes('entity') ||
+                rule.selectorText && rule.selectorText.includes('cardinality') ||
+                rule.selectorText && rule.selectorText.includes('attribute') ||
+                rule.selectorText && rule.selectorText.includes('badge') ||
+                rule.selectorText && rule.selectorText.includes('pk') ||
+                rule.selectorText && rule.selectorText.includes('fk')) {
+              styleRules.push(rule.cssText);
+            }
+          }
+        } catch (_) { /* CORS restrictions sur les feuilles externes */ }
+      }
+      if (styleRules.length) {
+        const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        styleEl.textContent = styleRules.join('\n');
+        clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const serializer = new XMLSerializer();
+      let svgStr = serializer.serializeToString(clone);
+
+      // Ajouter la déclaration XML
+      svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgStr;
+
+      const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '_');
+      a.download = `diagram_${timestamp}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function loadExample() {
@@ -102,7 +162,12 @@ createApp({
 
       dragState.value = null;
       draggingEntity.value = null;
-      viewBox.value = computeViewBox(entities.value);
+      const computedRels = computeRelations(entities.value, relations.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
@@ -116,6 +181,7 @@ createApp({
       loading,
       draggingEntity,
       generate,
+      exportSvg,
       loadExample,
       isLinkedColumn,
       onEntityPointerDown,
