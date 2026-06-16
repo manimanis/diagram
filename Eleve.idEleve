@@ -1,0 +1,4 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   374  100   280  100    94  98073  32924 --:--:-- --:--:-- --:--:--  182k
+{"entities":[{"name":"Eleve","attributes":[{"name":"idEleve","isPk":true,"isFk":false},{"name":"nomEl)\\nNote(idNote","isPk":false,"isFk":false},{"name":"valeur","isPk":false,"isFk":false},{"name":"idEleve# -","isPk":false,"isFk":false}],"primaryKey":["idEleve"]}],"relations":[]}

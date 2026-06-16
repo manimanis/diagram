@@ -42,8 +42,9 @@
             <li><span class="card-sample">1</span> / <span class="card-sample">N</span> Cardinalité maximale (Merise)</li>
           </ul>
           <p class="hint">
-            Syntaxe : <code>Entite(attr1, attr2#, PK[cle])</code><br>
-            Le suffixe <code>#</code> indique une clé étrangère.
+            Syntaxes :<br>
+            <code>Entite(attr1, attr2#, PK[cle])</code> — <code>#</code> = clé étrangère (détection automatique de la cible)<br>
+            <code>Entite(attr# -> Cible.attrCible, PK[cle])</code> — référence explicite vers <code>Cible.attrCible</code>
           </p>
         </aside>
       </section>
@@ -56,6 +57,7 @@
         <div v-else class="diagram-wrapper" ref="diagramWrapper">
           <div class="diagram-toolbar">
             <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg">Exporter SVG</button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage">Copier en tant qu'image</button>
           </div>
           <svg
             :viewBox="diagram.viewBox"
@@ -63,6 +65,7 @@
             :height="diagram.viewBoxHeight"
             class="diagram-svg"
             xmlns="http://www.w3.org/2000/svg"
+            style="overflow: visible;"
           >
             <defs>
               <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">

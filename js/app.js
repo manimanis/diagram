@@ -1,6 +1,13 @@
-const EXAMPLE_SCHEMA = `Eleve(idEleve, nomEl, PrenomEl, dnEl, PK[idEleve])
-Classe(idClasse, libelleCl, PK[idClasse])
-ClasseEleve(idEleve#, idClasse#, annee_scolaire, PK[idEleve#, idClasse#, annee_scolaire])`;
+const EXAMPLE_SCHEMA = `Etudiant(matricule, nom, prenom, dateNaiss, adresse, telephone, PK[matricule])
+Professeur(idProf, nomProf, prenomProf, specialite, email, PK[idProf])
+Cours(idCours, intitule, credits, semestre, PK[idCours])
+Inscription(idEtudiant# -> Etudiant.matricule, idCours# -> Cours.idCours, dateInscription, note, PK[idEtudiant#, idCours#])
+Enseignement(idProf# -> Professeur.idProf, idCours# -> Cours.idCours, anneeAcademique, salle, PK[idProf#, idCours#, anneeAcademique])
+Departement(idDept, nomDept, chefDept# -> Professeur.idProf, PK[idDept])
+Matiere(idMatiere, libelle, coefficient, idDept# -> Departement.idDept, PK[idMatiere])
+Examen(idExamen, type, dateExamen, duree, idMatiere# -> Matiere.idMatiere, PK[idExamen])
+Note(idEtudiant# -> Etudiant.matricule, idExamen# -> Examen.idExamen, valeur, appreciation, PK[idEtudiant#, idExamen#])
+Salle(idSalle, code, capacite, batiment, PK[idSalle])`;
 
 const { createApp, ref, computed } = Vue;
 
@@ -73,9 +80,9 @@ createApp({
       }
     }
 
-    function exportSvg() {
+    function prepareSvgClone() {
       const svgEl = document.querySelector('.diagram-svg');
-      if (!svgEl) return;
+      if (!svgEl) return null;
 
       const clone = svgEl.cloneNode(true);
 
@@ -86,12 +93,10 @@ createApp({
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
       // Ajouter les styles depuis les classes CSS en les inlineant dans un <style>
-      // On récupère les règles de la feuille de style du document
       const styleRules = [];
       for (const sheet of document.styleSheets) {
         try {
           for (const rule of sheet.cssRules || sheet.rules) {
-            // Ne garder que les règles qui concernent le SVG
             if (rule.selectorText && rule.selectorText.includes('diagram-svg') ||
                 rule.selectorText && rule.selectorText.includes('relation') ||
                 rule.selectorText && rule.selectorText.includes('entity') ||
@@ -111,6 +116,13 @@ createApp({
         clone.insertBefore(styleEl, clone.firstChild);
       }
 
+      return clone;
+    }
+
+    function exportSvg() {
+      const clone = prepareSvgClone();
+      if (!clone) return;
+
       const serializer = new XMLSerializer();
       let svgStr = serializer.serializeToString(clone);
 
@@ -127,6 +139,98 @@ createApp({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    async function copyAsImage() {
+      const clone = prepareSvgClone();
+      if (!clone) return;
+
+      const serializer = new XMLSerializer();
+      let svgStr = serializer.serializeToString(clone);
+
+      // Obtenir les dimensions réelles du SVG
+      const svgEl = document.querySelector('.diagram-svg');
+      const vb = svgEl.getAttribute('viewBox');
+      let imgW, imgH;
+      if (vb) {
+        const parts = vb.split(' ').map(Number);
+        imgW = parts[2];
+        imgH = parts[3];
+      } else {
+        imgW = svgEl.clientWidth || 800;
+        imgH = svgEl.clientHeight || 600;
+      }
+
+      // Créer un Blob SVG
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Impossible de charger l\'image SVG.'));
+          img.src = url;
+        });
+
+        // Facteur d'échelle pour une bonne qualité (2x)
+        const scale = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = imgW * scale;
+        canvas.height = imgH * scale;
+        const ctx = canvas.getContext('2d');
+        
+        // Fond blanc
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+            else reject(new Error('Impossible de générer le PNG.'));
+          }, 'image/png');
+        });
+
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+
+        // Feedback visuel temporaire
+        const btn = document.querySelector('.diagram-toolbar .btn-sm:last-child');
+        if (btn) {
+          const originalText = btn.textContent;
+          btn.textContent = '✓ Copié !';
+          btn.classList.add('btn-success');
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('btn-success');
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Erreur de copie:', err);
+        // Fallback si l'API Clipboard n'est pas supportée
+        const canvas = document.createElement('canvas');
+        canvas.width = imgW;
+        canvas.height = imgH;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          const link = document.createElement('a');
+          link.download = 'diagram.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        };
+        img.src = url;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     }
 
     function loadExample() {
@@ -182,6 +286,7 @@ createApp({
       draggingEntity,
       generate,
       exportSvg,
+      copyAsImage,
       loadExample,
       isLinkedColumn,
       onEntityPointerDown,

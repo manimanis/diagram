@@ -65,13 +65,35 @@ function parseSchema(string $text): array
 
         $attributes = [];
         foreach ($rawAttributes as $rawAttr) {
-            $isFk = str_ends_with($rawAttr, '#');
-            $name = normalizeAttributeName($rawAttr);
-            $attributes[] = [
+            $isFk = false;
+            $name = '';
+            $references = null;
+
+            // Syntaxe explicite : attrName# -> Entity.attrName
+            if (preg_match('/^(\w+)#\s*->\s*(\w+)\.(\w+)$/u', $rawAttr, $refMatch)) {
+                $name = $refMatch[1];
+                $isFk = true;
+                $references = [
+                    'entity' => $refMatch[2],
+                    'attribute' => $refMatch[3],
+                ];
+            } elseif (str_ends_with($rawAttr, '#')) {
+                $isFk = true;
+                $name = normalizeAttributeName($rawAttr);
+            } else {
+                $name = normalizeAttributeName($rawAttr);
+            }
+
+            $attrEntry = [
                 'name' => $name,
                 'isPk' => in_array($name, $pkNames, true),
                 'isFk' => $isFk,
             ];
+            if ($references !== null) {
+                $attrEntry['references'] = $references;
+            }
+
+            $attributes[] = $attrEntry;
         }
 
         $entities[$entityName] = [
@@ -105,9 +127,18 @@ function buildRelations(array $entities): array
                 continue;
             }
 
-            $target = findReferencedEntity($entities, $attribute['name'], $fromEntity['name']);
-            if ($target === null) {
-                continue;
+            // Si une référence explicite est fournie, l'utiliser directement
+            if (isset($attribute['references'])) {
+                $targetName = $attribute['references']['entity'];
+                if (!isset($entities[$targetName])) {
+                    continue;
+                }
+                $target = $entities[$targetName];
+            } else {
+                $target = findReferencedEntity($entities, $attribute['name'], $fromEntity['name']);
+                if ($target === null) {
+                    continue;
+                }
             }
 
             $key = min($fromEntity['name'], $target['name']) . '|' .
@@ -121,11 +152,33 @@ function buildRelations(array $entities): array
 
             $fkInPk = in_array($attribute['name'], $fromEntity['primaryKey'], true);
 
+            // Déterminer l'attribut cible (viaTarget)
+            // Si référence explicite, utiliser l'attribut référencé
+            // Sinon, chercher l'attribut dans l'entité cible qui correspond (PK = même nom)
+            $viaTarget = $attribute['name'];
+            if (isset($attribute['references'])) {
+                $viaTarget = $attribute['references']['attribute'];
+            } else {
+                // Chercher dans la PK de la cible
+                if (in_array($attribute['name'], $target['primaryKey'], true)) {
+                    $viaTarget = $attribute['name'];
+                } else {
+                    // Parcourir les attributs de la cible pour trouver une correspondance
+                    foreach ($target['attributes'] as $targetAttr) {
+                        if ($targetAttr['name'] === $attribute['name']) {
+                            $viaTarget = $targetAttr['name'];
+                            break;
+                        }
+                    }
+                }
+            }
+
             // Merise : côté FK (from) = (1,1) si obligatoire, (0,1) sinon ; côté référencé (to) = (0,N)
             $relations[] = [
                 'from' => $fromEntity['name'],
                 'to' => $target['name'],
                 'via' => $attribute['name'],
+                'viaTarget' => $viaTarget,
                 'cardinalityFrom' => $fkInPk ? '(1,1)' : '(0,1)',
                 'cardinalityTo' => '(0,∞)',
             ];

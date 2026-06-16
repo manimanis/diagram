@@ -39,6 +39,9 @@ function layoutEntities(entities, relations) {
     y: 0,
   }));
 
+  if (positioned.length === 0) return positioned;
+
+  // ---------- 1. Adjacency graph ----------
   const adj = Object.fromEntries(positioned.map((e) => [e.name, []]));
   for (const rel of relations) {
     if (adj[rel.from] && adj[rel.to]) {
@@ -47,59 +50,109 @@ function layoutEntities(entities, relations) {
     }
   }
 
-  // Trouver l'entité la plus connectée comme point de départ
-  let maxConn = -1;
-  let startName = positioned[0]?.name;
+  // ---------- 2. Connected components ----------
+  const visited = new Set();
+  const components = [];
   for (const e of positioned) {
-    if (adj[e.name].length > maxConn) {
-      maxConn = adj[e.name].length;
-      startName = e.name;
+    if (visited.has(e.name)) continue;
+    const comp = [];
+    const queue = [e.name];
+    visited.add(e.name);
+    while (queue.length) {
+      const cur = queue.shift();
+      comp.push(cur);
+      for (const nb of adj[cur]) {
+        if (!visited.has(nb)) {
+          visited.add(nb);
+          queue.push(nb);
+        }
+      }
     }
+    components.push(comp);
   }
 
-  // BFS pour assigner un niveau (layer) à chaque entité
+  // ---------- 3. Layer assignment per component ----------
   const layer = Object.fromEntries(positioned.map((e) => [e.name, -1]));
-  const queue = [startName];
-  layer[startName] = 0;
-
-  while (queue.length > 0) {
-    const cur = queue.shift();
-    for (const nb of adj[cur]) {
-      if (layer[nb] === -1) {
-        layer[nb] = layer[cur] + 1;
-        queue.push(nb);
+  for (const comp of components) {
+    let maxConn = -1;
+    let startName = comp[0];
+    for (const name of comp) {
+      if (adj[name].length > maxConn) {
+        maxConn = adj[name].length;
+        startName = name;
+      }
+    }
+    const q = [startName];
+    layer[startName] = 0;
+    while (q.length) {
+      const cur = q.shift();
+      for (const nb of adj[cur]) {
+        if (layer[nb] === -1) {
+          layer[nb] = layer[cur] + 1;
+          q.push(nb);
+        }
       }
     }
   }
 
-  // Pour les entités non atteintes (graphe déconnecté), leur assigner un niveau
-  let maxLayer = Math.max(...Object.values(layer).filter((l) => l >= 0), 0);
-  for (const e of positioned) {
-    if (layer[e.name] === -1) {
-      maxLayer++;
-      layer[e.name] = maxLayer;
-    }
-  }
-
-  // Grouper les entités par niveau
+  // ---------- 4. Group by layer ----------
   const byLayer = {};
   for (const e of positioned) {
-    const l = layer[e.name];
+    const l = Math.max(0, layer[e.name]);
     if (!byLayer[l]) byLayer[l] = [];
     byLayer[l].push(e);
   }
-
   const layerKeys = Object.keys(byLayer).map(Number).sort((a, b) => a - b);
-  const H_GAP = 80;
-  const V_GAP = 40;
-  const START_X = 100;
+
+  // ---------- 5. Determine order within each layer (barycenter for fewer crossings) ----------
+  for (let iter = 0; iter < 10; iter++) {
+    for (let li = 0; li < layerKeys.length; li++) {
+      const lk = layerKeys[li];
+      const group = byLayer[lk];
+      group.forEach((entity) => {
+        let sum = 0;
+        let count = 0;
+        if (li > 0) {
+          const prevLayer = layerKeys[li - 1];
+          for (const nbName of adj[entity.name]) {
+            if (layer[nbName] === prevLayer) {
+              const nb = positioned.find((e) => e.name === nbName);
+              if (nb) { sum += nb.y; count++; }
+            }
+          }
+        }
+        if (li < layerKeys.length - 1) {
+          const nextLayer = layerKeys[li + 1];
+          for (const nbName of adj[entity.name]) {
+            if (layer[nbName] === nextLayer) {
+              const nb = positioned.find((e) => e.name === nbName);
+              if (nb) { sum += nb.y; count++; }
+            }
+          }
+        }
+        entity._bary = count > 0 ? sum / count : -1;
+      });
+      group.sort((a, b) => {
+        if (a._bary >= 0 && b._bary >= 0) return a._bary - b._bary;
+        if (a._bary >= 0) return -1;
+        if (b._bary >= 0) return 1;
+        return 0;
+      });
+    }
+  }
+
+  // ---------- 6. Position entities (guarantees all entities visible, no negative coords) ----------
+  const V_GAP = 48;
+  const H_GAP = 130;
+  const START_X = 80;
   const START_Y = 60;
 
+  // First pass: vertical stacking per layer
   let currentX = START_X;
-  for (const lk of layerKeys) {
+  for (let li = 0; li < layerKeys.length; li++) {
+    const lk = layerKeys[li];
     const group = byLayer[lk];
-    // Trier les entités d'un même niveau par nombre de connexions (les plus connectées en haut)
-    group.sort((a, b) => adj[b.name].length - adj[a.name].length);
+    const maxW = Math.max(...group.map((e) => e.width));
 
     let currentY = START_Y;
     for (const entity of group) {
@@ -108,16 +161,95 @@ function layoutEntities(entities, relations) {
       currentY += entity.height + V_GAP;
     }
 
-    // Largeur max du groupe pour espacer le prochain niveau
-    const maxW = Math.max(...group.map((e) => e.width));
     currentX += maxW + H_GAP;
   }
 
-  // Ajuster le centrage vertical si tout tient dans CANVAS_HEIGHT
-  const maxBottom = Math.max(...positioned.map((e) => e.y + e.height));
-  if (maxBottom < CANVAS_HEIGHT) {
-    const offsetY = (CANVAS_HEIGHT - maxBottom) / 2;
-    for (const e of positioned) e.y += offsetY;
+  // ---------- 7. Gentle centering: align each entity with the center of its neighbors ----------
+  // Forward pass (layer 1 → N)
+  for (let li = 1; li < layerKeys.length; li++) {
+    const lk = layerKeys[li];
+    const group = byLayer[lk];
+    const prevLayer = layerKeys[li - 1];
+
+    // Compute target Y for each entity based on neighbors in previous layer
+    for (const entity of group) {
+      let sumCenter = 0;
+      let count = 0;
+      for (const nbName of adj[entity.name]) {
+        if (layer[nbName] === prevLayer) {
+          const nb = positioned.find((e) => e.name === nbName);
+          if (nb) {
+            sumCenter += nb.y + nb.height / 2;
+            count++;
+          }
+        }
+      }
+      if (count > 0) {
+        entity._targetY = sumCenter / count - entity.height / 2;
+      } else {
+        entity._targetY = entity.y;
+      }
+    }
+
+    // Sort by target Y (blend: 50% target, 50% original order to prevent collapse)
+    const sorted = [...group].sort((a, b) => {
+      const diff = a._targetY - b._targetY;
+      if (Math.abs(diff) > 5) return diff;
+      return 0; // preserve original order
+    });
+
+    // Re-assign Y with guaranteed non-overlapping positions
+    let currentY = START_Y;
+    for (const entity of sorted) {
+      const desiredY = Math.max(currentY, entity._targetY);
+      entity.y = desiredY;
+      currentY = entity.y + entity.height + V_GAP;
+    }
+  }
+
+  // Backward pass (layer N → 1)
+  for (let li = layerKeys.length - 2; li >= 0; li--) {
+    const lk = layerKeys[li];
+    const group = byLayer[lk];
+    const nextLayer = layerKeys[li + 1];
+
+    for (const entity of group) {
+      let sumCenter = 0;
+      let count = 0;
+      for (const nbName of adj[entity.name]) {
+        if (layer[nbName] === nextLayer) {
+          const nb = positioned.find((e) => e.name === nbName);
+          if (nb) {
+            sumCenter += nb.y + nb.height / 2;
+            count++;
+          }
+        }
+      }
+      if (count > 0) {
+        entity._targetY = sumCenter / count - entity.height / 2;
+      } else {
+        entity._targetY = entity.y;
+      }
+    }
+
+    const sorted = [...group].sort((a, b) => {
+      const diff = a._targetY - b._targetY;
+      if (Math.abs(diff) > 5) return diff;
+      return 0;
+    });
+
+    let currentY = START_Y;
+    for (const entity of sorted) {
+      const desiredY = Math.max(currentY, entity._targetY);
+      entity.y = desiredY;
+      currentY = entity.y + entity.height + V_GAP;
+    }
+  }
+
+  // ---------- 8. Cleanup temporary properties ----------
+  for (const e of positioned) {
+    delete e._bary;
+    delete e._targetY;
   }
 
   return positioned;
@@ -194,9 +326,10 @@ function computeRelations(entities, relations) {
     const toEntity = entityMap[rel.to];
     if (!fromEntity || !toEntity) return null;
 
-    const columnName = rel.via;
-    const fromAttrIndex = getAttributeIndex(fromEntity, columnName);
-    const toAttrIndex = getAttributeIndex(toEntity, columnName);
+    const fromAttrName = rel.via;
+    const toAttrName = rel.viaTarget || rel.via;
+    const fromAttrIndex = getAttributeIndex(fromEntity, fromAttrName);
+    const toAttrIndex = getAttributeIndex(toEntity, toAttrName);
 
     if (fromAttrIndex < 0 || toAttrIndex < 0) return null;
 
@@ -214,7 +347,7 @@ function computeRelations(entities, relations) {
     return {
       from: rel.from,
       to: rel.to,
-      via: columnName,
+      via: fromAttrName,
       x1: fromPt.x,
       y1: fromPt.y,
       x2: toPt.x,
@@ -265,8 +398,8 @@ function computeViewBox(entities, relations) {
   }
 
   return [
-    minX - MARGIN,
-    minY - MARGIN,
+    Math.max(0, minX - MARGIN),
+    Math.max(0, minY - MARGIN),
     maxX - minX + MARGIN * 2,
     maxY - minY + MARGIN * 2,
   ].join(' ');
@@ -283,6 +416,7 @@ function buildDiagram(entities, relations) {
   const positionedEntities = layoutEntities(entities, relations);
   const computedRels = computeRelations(positionedEntities, relations);
   const viewBoxStr = computeViewBox(positionedEntities, computedRels);
+  console.log(viewBoxStr);
   const [vbX, vbY, vbW, vbH] = viewBoxStr.split(' ').map(Number);
   return {
     entities: positionedEntities,

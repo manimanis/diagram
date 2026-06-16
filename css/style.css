@@ -215,7 +215,6 @@ textarea:focus {
 
 .diagram-svg {
   display: block;
-  max-width: 100%;
 }
 
 .relation-line {
@@ -271,6 +270,7 @@ textarea:focus {
 }
 
 .entity-title {
+  font-family: 'Consolas', 'Courier New', monospace;
   fill: #fff;
   font-size: 14px;
   font-weight: 700;
