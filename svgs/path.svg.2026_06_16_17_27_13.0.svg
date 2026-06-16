@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewbox="106 -28.000015258789062 547 401"
+   class="diagram-svg"
+   version="1.1"
+   id="svg25"
+   sodipodi:docname="path.svg"
+   width="427"
+   height="281"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview25"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1" />
+  <defs
+     id="defs1">
+    <marker
+       id="arrow"
+       markerWidth="8"
+       markerHeight="8"
+       refX="7"
+       refY="4"
+       orient="auto">
+      <path
+         d="M 0,0 8,4 0,8 Z"
+         fill="#64748b"
+         id="path1" />
+    </marker>
+  </defs>
+  <g
+     class="entities"
+     id="g20"
+     transform="translate(-166,-31.999985)">
+    <g
+       class="entity-group"
+       transform="translate(412,31.999985)"
+       id="g8">
+      <rect
+         width="180"
+         height="132"
+         rx="6"
+         class="entity-box"
+         id="rect1"
+         x="0"
+         y="0" />
+      <rect
+         width="180"
+         height="32"
+         rx="6"
+         class="entity-header-bg"
+         pointer-events="none"
+         id="rect2"
+         x="0"
+         y="0" />
+      <rect
+         y="26"
+         width="180"
+         height="6"
+         class="entity-header-cover"
+         pointer-events="none"
+         id="rect3"
+         x="0" />
+      <text
+         x="90"
+         y="22"
+         class="entity-title"
+         text-anchor="middle"
+         pointer-events="none"
+         id="text3">Eleve</text>
+      <g
+         pointer-events="none"
+         id="g4">
+        <text
+           x="12"
+           y="48"
+           class="attribute-name is-pk is-linked"
+           id="text4">idEleve<!----></text>
+        <line
+           x1="12"
+           y1="50"
+           x2="62.400002"
+           y2="50"
+           class="pk-underline"
+           id="line4" />
+      </g>
+      <g
+         pointer-events="none"
+         id="g5">
+        <text
+           x="12"
+           y="70"
+           class="attribute-name"
+           id="text5">nomEl<!----></text>
+        <!---->
+      </g>
+      <g
+         pointer-events="none"
+         id="g6">
+        <text
+           x="12"
+           y="92"
+           class="attribute-name"
+           id="text6">PrenomEl<!----></text>
+        <!---->
+      </g>
+      <g
+         pointer-events="none"
+         id="g7">
+        <text
+           x="12"
+           y="114"
+           class="attribute-name"
+           id="text7">dnEl<!----></text>
+        <!---->
+      </g>
+    </g>
+    <g
+       class="entity-group"
+       transform="translate(413,224.99998)"
+       id="g13">
+      <rect
+         width="180"
+         height="88"
+         rx="6"
+         class="entity-box"
+         id="rect8"
+         x="0"
+         y="0" />
+      <rect
+         width="180"
+         height="32"
+         rx="6"
+         class="entity-header-bg"
+         pointer-events="none"
+         id="rect9"
+         x="0"
+         y="0" />
+      <rect
+         y="26"
+         width="180"
+         height="6"
+         class="entity-header-cover"
+         pointer-events="none"
+         id="rect10"
+         x="0" />
+      <text
+         x="90"
+         y="22"
+         class="entity-title"
+         text-anchor="middle"
+         pointer-events="none"
+         id="text10">Classe</text>
+      <g
+         pointer-events="none"
+         id="g11">
+        <text
+           x="12"
+           y="48"
+           class="attribute-name is-pk is-linked"
+           id="text11">idClasse<!----></text>
+        <line
+           x1="12"
+           y1="50"
+           x2="69.599998"
+           y2="50"
+           class="pk-underline"
+           id="line11" />
+      </g>
+      <g
+         pointer-events="none"
+         id="g12">
+        <text
+           x="12"
+           y="70"
+           class="attribute-name"
+           id="text12">libelleCl<!----></text>
+        <!---->
+      </g>
+    </g>
+    <g
+       class="entity-group"
+       transform="translate(166,100.99998)"
+       id="g19">
+      <rect
+         width="180"
+         height="110"
+         rx="6"
+         class="entity-box"
+         id="rect13"
+         x="0"
+         y="0" />
+      <rect
+         width="180"
+         height="32"
+         rx="6"
+         class="entity-header-bg"
+         pointer-events="none"
+         id="rect14"
+         x="0"
+         y="0" />
+      <rect
+         y="26"
+         width="180"
+         height="6"
+         class="entity-header-cover"
+         pointer-events="none"
+         id="rect15"
+         x="0" />
+      <text
+         x="90"
+         y="22"
+         class="entity-title"
+         text-anchor="middle"
+         pointer-events="none"
+         id="text15">ClasseEleve</text>
+      <g
+         pointer-events="none"
+         id="g16">
+        <text
+           x="12"
+           y="48"
+           class="attribute-name is-pk is-fk is-linked"
+           id="text16">idEleve<tspan
+   id="tspan15">#</tspan></text>
+        <line
+           x1="12"
+           y1="50"
+           x2="69.599998"
+           y2="50"
+           class="pk-underline"
+           id="line16" />
+      </g>
+      <g
+         pointer-events="none"
+         id="g17">
+        <text
+           x="12"
+           y="70"
+           class="attribute-name is-pk is-fk is-linked"
+           id="text17">idClasse<tspan
+   id="tspan16">#</tspan></text>
+        <line
+           x1="12"
+           y1="72"
+           x2="76.800003"
+           y2="72"
+           class="pk-underline"
+           id="line17" />
+      </g>
+      <g
+         pointer-events="none"
+         id="g18">
+        <text
+           x="12"
+           y="92"
+           class="attribute-name is-pk"
+           id="text18">annee_scolaire<!----></text>
+        <line
+           x1="12"
+           y1="94"
+           x2="112.8"
+           y2="94"
+           class="pk-underline"
+           id="line18" />
+      </g>
+    </g>
+  </g>
+  <g
+     class="relations"
+     id="g25"
+     transform="translate(-166,-31.999985)">
+    <g
+       id="g22">
+      <path
+         d="m 346,144.99998 h 40 -14 V 75.999985 h 40"
+         class="relation-line"
+         id="path20" />
+      <circle
+         cx="346"
+         cy="144.99998"
+         r="3"
+         class="relation-anchor"
+         id="circle20" />
+      <circle
+         cx="412"
+         cy="75.999985"
+         r="3"
+         class="relation-anchor"
+         id="circle21" />
+      <text
+         x="361.20691"
+         y="129.10187"
+         class="cardinality-label"
+         text-anchor="middle"
+         id="text21">1</text>
+      <text
+         x="396.79309"
+         y="91.898102"
+         class="cardinality-label"
+         text-anchor="middle"
+         id="text22">N</text>
+    </g>
+    <g
+       id="g24">
+      <path
+         d="m 346,166.99998 h 40 -13 v 102 h 40"
+         class="relation-line"
+         id="path22" />
+      <circle
+         cx="346"
+         cy="166.99998"
+         r="3"
+         class="relation-anchor"
+         id="circle22" />
+      <circle
+         cx="413"
+         cy="269"
+         r="3"
+         class="relation-anchor"
+         id="circle23" />
+      <text
+         x="358.07831"
+         y="185.38786"
+         class="cardinality-label"
+         text-anchor="middle"
+         id="text23">1</text>
+      <text
+         x="400.92169"
+         y="250.61211"
+         class="cardinality-label"
+         text-anchor="middle"
+         id="text24">N</text>
+    </g>
+  </g>
+</svg>

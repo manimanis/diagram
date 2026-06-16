@@ -157,42 +157,24 @@ function isAligned(fromPoint, fromSide, toPoint, toSide) {
 }
 
 function generateOrthogonalPath(fromPoint, fromSide, toPoint, toSide) {
-  const DIR = {
-    left: { x: -1, y: 0 },
-    right: { x: 1, y: 0 },
-    top: { x: 0, y: -1 },
-    bottom: { x: 0, y: 1 },
-  };
+  console.log(fromPoint, fromSide, toPoint, toSide)
 
-  const d1 = DIR[fromSide];
-  const d2 = DIR[toSide];
-
-  const p1 = { x: fromPoint.x + d1.x * RELATION_OFFSET, y: fromPoint.y + d1.y * RELATION_OFFSET };
-  const p2 = { x: toPoint.x + d2.x * RELATION_OFFSET, y: toPoint.y + d2.y * RELATION_OFFSET };
-
-  // Option A: horizontal-first routing (go to p2.x then to p2.y)
-  const midA = { x: p2.x, y: p1.y };
-  // Option B: vertical-first routing (go to p2.y then to p2.x)
-  const midB = { x: p1.x, y: p2.y };
-
-  const lenA = Math.abs(midA.x - p1.x) + Math.abs(midA.y - p1.y) + Math.abs(p2.x - midA.x) + Math.abs(p2.y - midA.y);
-  const lenB = Math.abs(midB.x - p1.x) + Math.abs(midB.y - p1.y) + Math.abs(p2.x - midB.x) + Math.abs(p2.y - midB.y);
-
-  if (lenA <= lenB) {
-    return `M ${fromPoint.x},${fromPoint.y} L ${p1.x},${p1.y} L ${midA.x},${midA.y} L ${p2.x},${p2.y} L ${toPoint.x},${toPoint.y}`;
+  if (Math.abs(fromPoint.x - toPoint.x) > 36) {
+    let mid = { x: (fromPoint.x  + toPoint.x) / 2, y: (fromPoint.y + toPoint.y)  / 2 }
+    return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
+  } else {
+    let sgn = (fromSide === toSide && fromSide === 'right') ? 1 : -1;
+    let mid = { x: fromPoint.x  + sgn * 18, y: (fromPoint.y + toPoint.y)  / 2 }
+    return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
   }
-
-  return `M ${fromPoint.x},${fromPoint.y} L ${p1.x},${p1.y} L ${midB.x},${midB.y} L ${p2.x},${p2.y} L ${toPoint.x},${toPoint.y}`;
 }
 
 function offsetLabel(point, anchor, distance) {
-  const dx = point.x - anchor.x;
-  const dy = point.y - anchor.y;
-  const len = Math.hypot(dx, dy) || 1;
+  let sgn = point.x < anchor.x ? -1 : 1;
   return {
-    x: point.x + (dx / len) * distance,
-    y: point.y + (dy / len) * distance,
-  };
+    x: point.x + sgn * distance,
+    y: point.y - 5 
+  }
 }
 
 function computeRelations(entities, relations) {
@@ -217,11 +199,13 @@ function computeRelations(entities, relations) {
     const aligned = isAligned(fromPt, fromResult.side, toPt, toResult.side);
 
     let pathD;
-    if (aligned) {
-      pathD = `M ${fromPt.x},${fromPt.y} L ${toPt.x},${toPt.y}`;
-    } else {
-      pathD = generateOrthogonalPath(fromPt, fromResult.side, toPt, toResult.side);
-    }
+    // if (aligned) {
+    //   pathD = `M ${fromPt.x},${fromPt.y} L ${toPt.x},${toPt.y}`;
+    // } else {
+      
+    // }
+
+    pathD = generateOrthogonalPath(fromPt, fromResult.side, toPt, toResult.side);
 
     return {
       from: rel.from,
@@ -235,8 +219,8 @@ function computeRelations(entities, relations) {
       aligned,
       cardinalityFrom: maxCardinality(rel.cardinalityFrom),
       cardinalityTo: maxCardinality(rel.cardinalityTo),
-      labelFrom: offsetLabel(fromPt, toPt, -22),
-      labelTo: offsetLabel(toPt, fromPt, -22),
+      labelFrom: offsetLabel(fromPt, toPt, -10),
+      labelTo: offsetLabel(toPt, fromPt, -10),
     };
   }).filter(Boolean);
 }

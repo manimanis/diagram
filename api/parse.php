@@ -127,7 +127,7 @@ function buildRelations(array $entities): array
                 'to' => $target['name'],
                 'via' => $attribute['name'],
                 'cardinalityFrom' => $fkInPk ? '(1,1)' : '(0,1)',
-                'cardinalityTo' => '(0,N)',
+                'cardinalityTo' => '(0,∞)',
             ];
         }
     }
