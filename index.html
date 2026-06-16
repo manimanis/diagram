@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagramme ER — Base de données</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Diagramme entité-relation</h1>
+      <p class="subtitle">Saisissez la représentation textuelle du schéma pour générer le diagramme avec relations et cardinalités.</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel-input">
+        <label for="schema-input">Schéma textuel</label>
+        <textarea
+          id="schema-input"
+          v-model="schemaText"
+          rows="12"
+          spellcheck="false"
+          placeholder="Eleve(idEleve, nomEl, PrenomEl, dnEl, PK[idEleve])&#10;Classe(idClasse, libelleCl, PK[idClasse])&#10;ClasseEleve(idEleve#, idClasse#, annee_scolaire, PK[idEleve#, idClasse#, annee_scolaire])"
+        ></textarea>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary" :disabled="loading" @click="generate">
+            {{ loading ? 'Génération…' : 'Générer le diagramme' }}
+          </button>
+          <button type="button" class="btn btn-secondary" @click="loadExample">Exemple</button>
+        </div>
+
+        <div v-if="error" class="alert alert-error">{{ error }}</div>
+
+        <aside class="legend">
+          <h3>Légende</h3>
+          <ul>
+            <li><span class="badge pk">PK</span> Clé primaire</li>
+            <li><span class="badge fk">FK</span> Clé étrangère</li>
+            <li><span class="card-sample">1</span> / <span class="card-sample">N</span> Cardinalité maximale (Merise)</li>
+          </ul>
+          <p class="hint">
+            Syntaxe : <code>Entite(attr1, attr2#, PK[cle])</code><br>
+            Le suffixe <code>#</code> indique une clé étrangère.
+          </p>
+        </aside>
+      </section>
+
+      <section class="panel panel-diagram">
+        <div v-if="!diagram" class="empty-state">
+          <p>Le diagramme apparaîtra ici après génération.</p>
+        </div>
+
+        <div v-else class="diagram-wrapper" ref="diagramWrapper">
+          <svg
+            :viewBox="diagram.viewBox"
+            class="diagram-svg"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+              </marker>
+            </defs>
+
+            <!-- Entités -->
+            <g class="entities">
+              <g
+                v-for="entity in diagram.entities"
+                :key="entity.name"
+                class="entity-group"
+                :class="{ dragging: draggingEntity === entity.name }"
+                :transform="'translate(' + entity.x + ',' + entity.y + ')'"
+                @pointerdown="onEntityPointerDown(entity, $event)"
+                @pointermove="onEntityPointerMove(entity, $event)"
+                @pointerup="onEntityPointerUp(entity, $event)"
+                @pointercancel="onEntityPointerUp(entity, $event)"
+              >
+                <rect
+                  :width="entity.width"
+                  :height="entity.height"
+                  rx="6"
+                  class="entity-box"
+                />
+                <rect
+                  :width="entity.width"
+                  height="32"
+                  rx="6"
+                  class="entity-header-bg"
+                  pointer-events="none"
+                />
+                <rect
+                  y="26"
+                  :width="entity.width"
+                  height="6"
+                  class="entity-header-cover"
+                  pointer-events="none"
+                />
+                <text
+                  :x="entity.width / 2"
+                  y="22"
+                  class="entity-title"
+                  text-anchor="middle"
+                  pointer-events="none"
+                >{{ entity.name }}</text>
+
+                <g v-for="(attr, j) in entity.attributes" :key="attr.name" pointer-events="none">
+                  <text
+                    x="12"
+                    :y="48 + j * 22"
+                    class="attribute-name"
+                    :class="{ 'is-pk': attr.isPk, 'is-fk': attr.isFk, 'is-linked': isLinkedColumn(entity.name, attr.name) }"
+                  >
+                    {{ attr.name }}<tspan v-if="attr.isFk">#</tspan>
+                  </text>
+                  <!-- Ligne de soulignement pour les clés primaires -->
+                  <line
+                    v-if="attr.isPk"
+                    :x1="12"
+                    :y1="50 + j * 22"
+                    :x2="12 + attr.name.length * 7.2 + (attr.isFk ? 7.2 : 0)"
+                    :y2="50 + j * 22"
+                    class="pk-underline"
+                  />
+                </g>
+              </g>
+            </g>
+
+            <!-- Relations (au-dessus des entités, alignées sur les colonnes) -->
+            <g class="relations">
+              <g v-for="(rel, i) in renderedRelations" :key="'rel-' + i">
+                <path
+                  :d="rel.pathD"
+                  class="relation-line"
+                />
+                <circle :cx="rel.x1" :cy="rel.y1" r="3" class="relation-anchor" />
+                <circle :cx="rel.x2" :cy="rel.y2" r="3" class="relation-anchor" />
+                <text
+                  :x="rel.labelFrom.x" :y="rel.labelFrom.y"
+                  class="cardinality-label"
+                  text-anchor="middle"
+                >{{ rel.cardinalityFrom }}</text>
+                <text
+                  :x="rel.labelTo.x" :y="rel.labelTo.y"
+                  class="cardinality-label"
+                  text-anchor="middle"
+                >{{ rel.cardinalityTo }}</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/diagram.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

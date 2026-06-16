@@ -1,0 +1,306 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f1f5f9;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.header {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  color: #fff;
+  padding: 1.5rem 2rem;
+}
+
+.header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: calc(100vh - 100px);
+}
+
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 1.25rem;
+}
+
+.panel-input label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+textarea {
+  width: 100%;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  resize: vertical;
+  background: #f8fafc;
+}
+
+textarea:focus {
+  outline: 2px solid #2563eb;
+  border-color: #2563eb;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.btn-secondary:hover {
+  background: #cbd5e1;
+}
+
+.alert {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.legend {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.legend h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.legend ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+
+.legend li {
+  margin-bottom: 0.25rem;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  margin-right: 0.25rem;
+}
+
+.badge.pk {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge.fk {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.card-sample {
+  font-family: 'Consolas', monospace;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.hint code {
+  background: #f1f5f9;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.panel-diagram {
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.diagram-wrapper {
+  flex: 1;
+  overflow: auto;
+  background: #fafbfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.diagram-svg {
+  width: 100%;
+  min-height: 480px;
+  display: block;
+}
+
+.relation-line {
+  fill: none;
+  stroke: #64748b;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.relation-anchor {
+  fill: #64748b;
+  pointer-events: none;
+}
+
+.cardinality-label {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  fill: #7c3aed;
+  paint-order: stroke fill;
+  stroke: #fff;
+  stroke-width: 4px;
+}
+
+.entity-group {
+  cursor: grab;
+  touch-action: none;
+}
+
+.entity-group.dragging {
+  cursor: grabbing;
+}
+
+.entity-group.dragging .entity-box {
+  stroke: #2563eb;
+  filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.25));
+}
+
+.entity-box {
+  fill: #fff;
+  stroke: #334155;
+  stroke-width: 2;
+}
+
+.entity-header-bg {
+  fill: #1e3a5f;
+}
+
+.entity-header-cover {
+  fill: #1e3a5f;
+}
+
+.entity-title {
+  fill: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.attribute-name {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  fill: #334155;
+}
+
+.attribute-name.is-pk {
+  font-weight: 700;
+}
+
+.attribute-name.is-fk {
+  fill: #1d4ed8;
+}
+
+.attribute-name.is-linked {
+  font-weight: 700;
+}
+
+.pk-underline {
+  stroke: #334155;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.attr-badge.pk {
+  fill: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.attr-badge.fk {
+  fill: #1e40af;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
