@@ -7,6 +7,7 @@ const CHAR_WIDTH = 7.2;
 const MARGIN = 60;
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
+const ORTHOGONAL_OFFSET = 36;
 
 function measureEntity(entity) {
   const titleWidth = entity.name.length * CHAR_WIDTH + ENTITY_PADDING * 2;
@@ -132,12 +133,15 @@ function getAttributeRowY(entity, attrIndex) {
 
 function getAttributeEdgePoint(entity, attrIndex, otherEntity) {
   const rowY = getAttributeRowY(entity, attrIndex);
-  const otherX = otherEntity.x + otherEntity.width / 2;
-  const dx = otherX - (entity.x + entity.width / 2);
+  let side;
 
-  // Toujours sortir par la gauche ou la droite, à la hauteur exacte de la colonne
-  const side = dx >= 0 ? 'right' : 'left';
-  const point = { x: dx >= 0 ? entity.x + entity.width : entity.x, y: rowY };
+  if (otherEntity.x > entity.x + entity.width + ORTHOGONAL_OFFSET) {
+    side = 'right';
+  } else {
+    side = 'left';
+  }
+
+  const point = { x: side === 'right' ? entity.x + entity.width : entity.x, y: rowY };
 
   return { point, side };
 }
@@ -157,23 +161,28 @@ function isAligned(fromPoint, fromSide, toPoint, toSide) {
 }
 
 function generateOrthogonalPath(fromPoint, fromSide, toPoint, toSide) {
-  console.log(fromPoint, fromSide, toPoint, toSide)
-
-  if (Math.abs(fromPoint.x - toPoint.x) > 36) {
-    let mid = { x: (fromPoint.x  + toPoint.x) / 2, y: (fromPoint.y + toPoint.y)  / 2 }
+  if (fromSide === toSide) {
+    // Same side, use offset
+    let offset = fromSide === 'right' ? ORTHOGONAL_OFFSET / 2 : -ORTHOGONAL_OFFSET / 2;
+    let x;
+    if (fromSide === 'left') {
+      x = Math.min(fromPoint.x, toPoint.x);
+    } else {
+      x = Math.max(fromPoint.x, toPoint.x);
+    }
+    let mid = { x: x + offset, y: fromPoint.y };
     return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
   } else {
-    let sgn = (fromSide === toSide && fromSide === 'right') ? 1 : -1;
-    let mid = { x: fromPoint.x  + sgn * 18, y: (fromPoint.y + toPoint.y)  / 2 }
+    let mid = { x: (fromPoint.x  + toPoint.x) / 2, y: (fromPoint.y + toPoint.y)  / 2 }
     return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
   }
 }
 
-function offsetLabel(point, anchor, distance) {
-  let sgn = point.x < anchor.x ? -1 : 1;
+function offsetLabel(fromResult) {
+  let sgn = fromResult.side === 'right' ? 1 : -1;
   return {
-    x: point.x + sgn * distance,
-    y: point.y - 5 
+    x: fromResult.point.x + sgn * RELATION_OFFSET / 4,
+    y: fromResult.point.y - 5 
   }
 }
 
@@ -194,18 +203,13 @@ function computeRelations(entities, relations) {
     const fromResult = getAttributeEdgePoint(fromEntity, fromAttrIndex, toEntity);
     const toResult = getAttributeEdgePoint(toEntity, toAttrIndex, fromEntity);
 
+    // console.log(fromEntity, toEntity);
+
     const fromPt = fromResult.point;
     const toPt = toResult.point;
     const aligned = isAligned(fromPt, fromResult.side, toPt, toResult.side);
 
-    let pathD;
-    // if (aligned) {
-    //   pathD = `M ${fromPt.x},${fromPt.y} L ${toPt.x},${toPt.y}`;
-    // } else {
-      
-    // }
-
-    pathD = generateOrthogonalPath(fromPt, fromResult.side, toPt, toResult.side);
+    let pathD = generateOrthogonalPath(fromPt, fromResult.side, toPt, toResult.side);
 
     return {
       from: rel.from,
@@ -219,8 +223,8 @@ function computeRelations(entities, relations) {
       aligned,
       cardinalityFrom: maxCardinality(rel.cardinalityFrom),
       cardinalityTo: maxCardinality(rel.cardinalityTo),
-      labelFrom: offsetLabel(fromPt, toPt, -10),
-      labelTo: offsetLabel(toPt, fromPt, -10),
+      labelFrom: offsetLabel(fromResult),
+      labelTo: offsetLabel(toResult),
     };
   }).filter(Boolean);
 }
