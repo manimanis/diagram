@@ -43,8 +43,11 @@ function layoutEntities(entities, relations) {
 
   // ---------- 1. Adjacency graph ----------
   const adj = Object.fromEntries(positioned.map((e) => [e.name, []]));
+  const relCount = {};
   for (const rel of relations) {
     if (adj[rel.from] && adj[rel.to]) {
+      const key = [rel.from, rel.to].sort().join('|');
+      relCount[key] = (relCount[key] || 0) + 1;
       adj[rel.from].push(rel.to);
       adj[rel.to].push(rel.from);
     }
@@ -71,17 +74,20 @@ function layoutEntities(entities, relations) {
     components.push(comp);
   }
 
-  // ---------- 3. Layer assignment per component ----------
+  // ---------- 3. Layer assignment per component (longest path layering) ----------
   const layer = Object.fromEntries(positioned.map((e) => [e.name, -1]));
   for (const comp of components) {
-    let maxConn = -1;
+    // Find node with max degree as root
     let startName = comp[0];
+    let maxDeg = -1;
     for (const name of comp) {
-      if (adj[name].length > maxConn) {
-        maxConn = adj[name].length;
+      if (adj[name].length > maxDeg) {
+        maxDeg = adj[name].length;
         startName = name;
       }
     }
+    
+    // BFS layering
     const q = [startName];
     layer[startName] = 0;
     while (q.length) {
@@ -90,6 +96,8 @@ function layoutEntities(entities, relations) {
         if (layer[nb] === -1) {
           layer[nb] = layer[cur] + 1;
           q.push(nb);
+        } else if (layer[nb] > layer[cur] + 1) {
+          layer[nb] = layer[cur] + 1;
         }
       }
     }
@@ -105,10 +113,14 @@ function layoutEntities(entities, relations) {
   const layerKeys = Object.keys(byLayer).map(Number).sort((a, b) => a - b);
 
   // ---------- 5. Determine order within each layer (barycenter for fewer crossings) ----------
-  for (let iter = 0; iter < 10; iter++) {
+  const entityMap = Object.fromEntries(positioned.map((e) => [e.name, e]));
+  
+  for (let iter = 0; iter < 20; iter++) {
+    let improved = false;
     for (let li = 0; li < layerKeys.length; li++) {
       const lk = layerKeys[li];
       const group = byLayer[lk];
+      
       group.forEach((entity) => {
         let sum = 0;
         let count = 0;
@@ -116,8 +128,8 @@ function layoutEntities(entities, relations) {
           const prevLayer = layerKeys[li - 1];
           for (const nbName of adj[entity.name]) {
             if (layer[nbName] === prevLayer) {
-              const nb = positioned.find((e) => e.name === nbName);
-              if (nb) { sum += nb.y; count++; }
+              const nb = entityMap[nbName];
+              if (nb) { sum += nb.y + nb.height / 2; count++; }
             }
           }
         }
@@ -125,29 +137,32 @@ function layoutEntities(entities, relations) {
           const nextLayer = layerKeys[li + 1];
           for (const nbName of adj[entity.name]) {
             if (layer[nbName] === nextLayer) {
-              const nb = positioned.find((e) => e.name === nbName);
-              if (nb) { sum += nb.y; count++; }
+              const nb = entityMap[nbName];
+              if (nb) { sum += nb.y + nb.height / 2; count++; }
             }
           }
         }
-        entity._bary = count > 0 ? sum / count : -1;
+        entity._bary = count > 0 ? sum / count : entity.y + entity.height / 2;
       });
+      
+      const oldOrder = group.map(e => e.name).join(',');
       group.sort((a, b) => {
         if (a._bary >= 0 && b._bary >= 0) return a._bary - b._bary;
         if (a._bary >= 0) return -1;
         if (b._bary >= 0) return 1;
         return 0;
       });
+      if (group.map(e => e.name).join(',') !== oldOrder) improved = true;
     }
+    if (!improved) break;
   }
 
-  // ---------- 6. Position entities (guarantees all entities visible, no negative coords) ----------
-  const V_GAP = 48;
-  const H_GAP = 130;
-  const START_X = 80;
-  const START_Y = 60;
+  // ---------- 6. Position entities ----------
+  const V_GAP = 40;
+  const H_GAP = 60;
+  const START_X = 20;
+  const START_Y = 20;
 
-  // First pass: vertical stacking per layer
   let currentX = START_X;
   for (let li = 0; li < layerKeys.length; li++) {
     const lk = layerKeys[li];
@@ -164,87 +179,57 @@ function layoutEntities(entities, relations) {
     currentX += maxW + H_GAP;
   }
 
-  // ---------- 7. Gentle centering: align each entity with the center of its neighbors ----------
-  // Forward pass (layer 1 → N)
-  for (let li = 1; li < layerKeys.length; li++) {
-    const lk = layerKeys[li];
-    const group = byLayer[lk];
-    const prevLayer = layerKeys[li - 1];
+  // ---------- 7. Centering passes (forward + backward) ----------
+  function centerPass(forward) {
+    const indices = forward 
+      ? Array.from({ length: layerKeys.length }, (_, i) => i)
+      : Array.from({ length: layerKeys.length }, (_, i) => layerKeys.length - 1 - i);
+    
+    for (const li of indices) {
+      if ((forward && li === 0) || (!forward && li === layerKeys.length - 1)) continue;
+      
+      const lk = layerKeys[li];
+      const group = byLayer[lk];
+      const neighborLayer = forward ? layerKeys[li - 1] : layerKeys[li + 1];
 
-    // Compute target Y for each entity based on neighbors in previous layer
-    for (const entity of group) {
-      let sumCenter = 0;
-      let count = 0;
-      for (const nbName of adj[entity.name]) {
-        if (layer[nbName] === prevLayer) {
-          const nb = positioned.find((e) => e.name === nbName);
-          if (nb) {
-            sumCenter += nb.y + nb.height / 2;
-            count++;
+      for (const entity of group) {
+        let sumCenter = 0;
+        let count = 0;
+        for (const nbName of adj[entity.name]) {
+          if (layer[nbName] === neighborLayer) {
+            const nb = entityMap[nbName];
+            if (nb) {
+              sumCenter += nb.y + nb.height / 2;
+              count++;
+            }
           }
         }
+        if (count > 0) {
+          entity._targetY = sumCenter / count - entity.height / 2;
+        } else {
+          entity._targetY = entity.y;
+        }
       }
-      if (count > 0) {
-        entity._targetY = sumCenter / count - entity.height / 2;
-      } else {
-        entity._targetY = entity.y;
+
+      const sorted = [...group].sort((a, b) => {
+        const diff = a._targetY - b._targetY;
+        if (Math.abs(diff) > 3) return diff;
+        return 0;
+      });
+
+      let currentY = START_Y;
+      for (const entity of sorted) {
+        const desiredY = Math.max(currentY, entity._targetY);
+        entity.y = desiredY;
+        currentY = entity.y + entity.height + V_GAP;
       }
-    }
-
-    // Sort by target Y (blend: 50% target, 50% original order to prevent collapse)
-    const sorted = [...group].sort((a, b) => {
-      const diff = a._targetY - b._targetY;
-      if (Math.abs(diff) > 5) return diff;
-      return 0; // preserve original order
-    });
-
-    // Re-assign Y with guaranteed non-overlapping positions
-    let currentY = START_Y;
-    for (const entity of sorted) {
-      const desiredY = Math.max(currentY, entity._targetY);
-      entity.y = desiredY;
-      currentY = entity.y + entity.height + V_GAP;
     }
   }
 
-  // Backward pass (layer N → 1)
-  for (let li = layerKeys.length - 2; li >= 0; li--) {
-    const lk = layerKeys[li];
-    const group = byLayer[lk];
-    const nextLayer = layerKeys[li + 1];
-
-    for (const entity of group) {
-      let sumCenter = 0;
-      let count = 0;
-      for (const nbName of adj[entity.name]) {
-        if (layer[nbName] === nextLayer) {
-          const nb = positioned.find((e) => e.name === nbName);
-          if (nb) {
-            sumCenter += nb.y + nb.height / 2;
-            count++;
-          }
-        }
-      }
-      if (count > 0) {
-        entity._targetY = sumCenter / count - entity.height / 2;
-      } else {
-        entity._targetY = entity.y;
-      }
-    }
-
-    const sorted = [...group].sort((a, b) => {
-      const diff = a._targetY - b._targetY;
-      if (Math.abs(diff) > 5) return diff;
-      return 0;
-    });
-
-    let currentY = START_Y;
-    for (const entity of sorted) {
-      const desiredY = Math.max(currentY, entity._targetY);
-      entity.y = desiredY;
-      currentY = entity.y + entity.height + V_GAP;
-    }
-  }
+  centerPass(true);
+  centerPass(false);
+  centerPass(true);
+  centerPass(false);
 
   // ---------- 8. Cleanup temporary properties ----------
   for (const e of positioned) {
@@ -318,8 +303,24 @@ function offsetLabel(fromResult) {
   }
 }
 
-function computeRelations(entities, relations) {
+function detectCardinality(fromEntity, toEntity, viaAttr) {
+  const fromPk = new Set((fromEntity.attributes || []).filter(a => a.isPk).map(a => a.name));
+  const isFullPkRef = viaAttr && fromPk.has(viaAttr);
+  if (isFullPkRef) {
+    return { from: '1', to: '1' };
+  }
+  return { from: '1', to: '∞' };
+}
+
+function computeRelations(entities, relations, useCrowsFoot = false) {
   const entityMap = Object.fromEntries(entities.map((e) => [e.name, e]));
+
+  function convertCardinality(card) {
+    if (!useCrowsFoot) return card;
+    if (card === '∞') return '*';
+    if (card === '1') return '1';
+    return card;
+  }
 
   return relations.map((rel) => {
     const fromEntity = entityMap[rel.from];
@@ -335,8 +336,6 @@ function computeRelations(entities, relations) {
 
     const fromResult = getAttributeEdgePoint(fromEntity, fromAttrIndex, toEntity);
     const toResult = getAttributeEdgePoint(toEntity, toAttrIndex, fromEntity);
-
-    // console.log(fromEntity, toEntity);
 
     const fromPt = fromResult.point;
     const toPt = toResult.point;
@@ -354,8 +353,8 @@ function computeRelations(entities, relations) {
       y2: toPt.y,
       pathD,
       aligned,
-      cardinalityFrom: maxCardinality(rel.cardinalityFrom),
-      cardinalityTo: maxCardinality(rel.cardinalityTo),
+      cardinalityFrom: convertCardinality(maxCardinality(rel.cardinalityFrom)),
+      cardinalityTo: convertCardinality(maxCardinality(rel.cardinalityTo)),
       labelFrom: offsetLabel(fromResult),
       labelTo: offsetLabel(toResult),
     };
@@ -412,9 +411,9 @@ function getSvgPoint(svg, clientX, clientY) {
   return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-function buildDiagram(entities, relations) {
+function buildDiagram(entities, relations, useCrowsFoot = false) {
   const positionedEntities = layoutEntities(entities, relations);
-  const computedRels = computeRelations(positionedEntities, relations);
+  const computedRels = computeRelations(positionedEntities, relations, useCrowsFoot);
   const viewBoxStr = computeViewBox(positionedEntities, computedRels);
   console.log(viewBoxStr);
   const [vbX, vbY, vbW, vbH] = viewBoxStr.split(' ').map(Number);

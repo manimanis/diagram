@@ -30,6 +30,16 @@
             {{ loading ? 'Génération…' : 'Générer le diagramme' }}
           </button>
           <button type="button" class="btn btn-secondary" @click="loadExample">Exemple</button>
+          <button type="button" class="btn btn-secondary" @click="importSql">Importer SQL</button>
+        </div>
+        <div class="saves" v-if="saves.length">
+          <label>Sauvegardes :</label>
+          <select v-model="selectedSave" @change="loadSave">
+            <option value="">-- Choisir --</option>
+            <option v-for="(s, i) in saves" :key="i" :value="i">{{ s.name }}</option>
+          </select>
+          <button type="button" class="btn btn-secondary btn-sm" @click="saveDiagram">Sauvegarder</button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="deleteSave" v-if="selectedSave !== ''">Supprimer</button>
         </div>
 
         <div v-if="error" class="alert alert-error">{{ error }}</div>
@@ -39,13 +49,23 @@
           <ul>
             <li><span class="badge pk">PK</span> Clé primaire</li>
             <li><span class="badge fk">FK</span> Clé étrangère</li>
-            <li><span class="card-sample">1</span> / <span class="card-sample">N</span> Cardinalité maximale (Merise)</li>
+            <li>
+              <span class="card-sample">1</span> / <span class="card-sample">N</span> Merise
+              &nbsp;|&nbsp;
+              <span class="card-sample">1</span> / <span class="card-sample">0..*</span> Crow's Foot
+            </li>
           </ul>
           <p class="hint">
             Syntaxes :<br>
             <code>Entite(attr1, attr2#, PK[cle])</code> — <code>#</code> = clé étrangère (détection automatique de la cible)<br>
             <code>Entite(attr# -> Cible.attrCible, PK[cle])</code> — référence explicite vers <code>Cible.attrCible</code>
           </p>
+          <div class="notation-toggle">
+            <label>
+              <input type="checkbox" v-model="useCrowsFoot" />
+              Utiliser la notation Crow's Foot
+            </label>
+          </div>
         </aside>
       </section>
 
@@ -56,16 +76,52 @@
 
         <div v-else class="diagram-wrapper" ref="diagramWrapper">
           <div class="diagram-toolbar">
-            <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg">Exporter SVG</button>
-            <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage">Copier en tant qu'image</button>
+            <div class="theme-selector">
+              <label class="theme-label">
+                <input type="radio" value="light" v-model="theme" id="theme-light" />
+                <span class="theme-btn" :class="{ active: theme === 'light' }">Clair</span>
+              </label>
+              <label class="theme-label">
+                <input type="radio" value="pastel" v-model="theme" id="theme-pastel" />
+                <span class="theme-btn" :class="{ active: theme === 'pastel' }">Pastel</span>
+              </label>
+              <label class="theme-label">
+                <input type="radio" value="forest" v-model="theme" id="theme-forest" />
+                <span class="theme-btn" :class="{ active: theme === 'forest' }">Forêt</span>
+              </label>
+              <label class="theme-label">
+                <input type="radio" value="rose" v-model="theme" id="theme-rose" />
+                <span class="theme-btn" :class="{ active: theme === 'rose' }">Rose</span>
+              </label>
+              <label class="theme-label">
+                <input type="radio" value="dark" v-model="theme" id="theme-dark" />
+                <span class="theme-btn" :class="{ active: theme === 'dark' }">Sombre</span>
+              </label>
+            </div>
+            <div class="toolbar-actions">
+              <button type="button" class="btn btn-secondary btn-sm" @click="zoomIn" title="Zoom avant">+</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="zoomOut" title="Zoom arrière">−</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="resetZoom" title="Réinitialiser le zoom">⟲</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="autoLayout" title="Réorganiser automatiquement">⊞</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="undo" title="Annuler (Ctrl+Z)">↶</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="redo" title="Rétablir (Ctrl+Y)">↷</button>
+              <label class="font-size-control" title="Taille de police">
+                <input type="number" v-model.number="fontSize" min="10" max="24" step="1" />
+                px
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg">Exporter SVG</button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage">Copier en tant qu'image</button>
+            </div>
           </div>
           <svg
             :viewBox="diagram.viewBox"
             :width="diagram.viewBoxWidth"
             :height="diagram.viewBoxHeight"
             class="diagram-svg"
+            :class="'theme-' + theme"
             xmlns="http://www.w3.org/2000/svg"
             style="overflow: visible;"
+            @dblclick="onSvgDblClick"
           >
             <defs>
               <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -79,7 +135,7 @@
                 v-for="entity in diagram.entities"
                 :key="entity.name"
                 class="entity-group"
-                :class="{ dragging: draggingEntity === entity.name }"
+                :class="{ dragging: draggingEntity === entity.name, selected: isEntitySelected(entity) }"
                 :transform="'translate(' + entity.x + ',' + entity.y + ')'"
                 @pointerdown="onEntityPointerDown(entity, $event)"
                 @pointermove="onEntityPointerMove(entity, $event)"
@@ -108,18 +164,29 @@
                 />
                 <text
                   :x="entity.width / 2"
-                  y="22"
+                  :y="22 + (diagram.fontSize - 14) * 0.3"
                   class="entity-title"
                   text-anchor="middle"
                   pointer-events="none"
+                  :style="{ fontSize: diagram.fontSize + 'px' }"
                 >{{ entity.name }}</text>
+                <text
+                  :x="entity.width - 12"
+                  y="22 + (diagram.fontSize - 14) * 0.3"
+                  class="collapse-toggle"
+                  text-anchor="end"
+                  @click="toggleCollapse(entity)"
+                  :style="{ fontSize: (diagram.fontSize - 2) + 'px' }"
+                >{{ entity.collapsed ? '+' : '−' }}</text>
 
-                <g v-for="(attr, j) in entity.attributes" :key="attr.name" pointer-events="none">
+                <g v-if="!entity.collapsed">
+                  <g v-for="(attr, j) in entity.attributes" :key="attr.name" pointer-events="none">
                   <text
                     x="12"
-                    :y="48 + j * 22"
+                    :y="48 + j * 22 + (diagram.fontSize - 14) * 0.3"
                     class="attribute-name"
                     :class="{ 'is-pk': attr.isPk, 'is-fk': attr.isFk, 'is-linked': isLinkedColumn(entity.name, attr.name) }"
+                    :style="{ fontSize: diagram.fontSize + 'px' }"
                   >
                     {{ attr.name }}<tspan v-if="attr.isFk">#</tspan>
                   </text>
@@ -127,13 +194,13 @@
                   <line
                     v-if="attr.isPk"
                     :x1="12"
-                    :y1="50 + j * 22"
-                    :x2="12 + attr.name.length * 7.9 + (attr.isFk ? 7.9 : 0)"
-                    :y2="50 + j * 22"
+                    :y1="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
+                    :x2="12 + attr.name.length * 7.9 * (diagram.fontSize / 14) + (attr.isFk ? 7.9 * (diagram.fontSize / 14) : 0)"
+                    :y2="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
                     class="pk-underline"
                   />
+                  </g>
                 </g>
-              </g>
             </g>
 
             <!-- Relations (au-dessus des entités, alignées sur les colonnes) -->

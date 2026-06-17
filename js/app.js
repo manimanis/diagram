@@ -1,4 +1,5 @@
-const EXAMPLE_SCHEMA = `Etudiant(matricule, nom, prenom, dateNaiss, adresse, telephone, PK[matricule])
+const EXAMPLE_SCHEMA = `Personne(matricule# -> Etudiant.matricule, user, password, PK[matricule#])
+Etudiant(matricule, nom, prenom, dateNaiss, adresse, telephone, PK[matricule])
 Professeur(idProf, nomProf, prenomProf, specialite, email, PK[idProf])
 Cours(idCours, intitule, credits, semestre, PK[idCours])
 Inscription(idEtudiant# -> Etudiant.matricule, idCours# -> Cours.idCours, dateInscription, note, PK[idEtudiant#, idCours#])
@@ -9,11 +10,11 @@ Examen(idExamen, type, dateExamen, duree, idMatiere# -> Matiere.idMatiere, PK[id
 Note(idEtudiant# -> Etudiant.matricule, idExamen# -> Examen.idExamen, valeur, appreciation, PK[idEtudiant#, idExamen#])
 Salle(idSalle, code, capacite, batiment, PK[idSalle])`;
 
-const { createApp, ref, computed } = Vue;
+const { createApp, ref, computed, watch } = Vue;
 
 createApp({
   setup() {
-    const schemaText = ref(EXAMPLE_SCHEMA);
+    const schemaText = ref(localStorage.getItem('schemaText') || EXAMPLE_SCHEMA);
     const entities = ref([]);
     const relations = ref([]);
     const viewBox = ref('');
@@ -21,17 +22,37 @@ createApp({
     const viewBoxHeight = ref(0);
     const error = ref('');
     const loading = ref(false);
+    const theme = ref(localStorage.getItem('theme') || 'light');
+    const selectedEntities = ref(new Set());
     const dragState = ref(null);
     const draggingEntity = ref(null);
+    const zoomLevel = ref(1);
+    const panOffset = ref({ x: 0, y: 0 });
+    const undoStack = ref([]);
+    const redoStack = ref([]);
+    const isPanning = ref(false);
+    const panStart = ref(null);
+    const saves = ref(JSON.parse(localStorage.getItem('saves') || '[]'));
+    const selectedSave = ref('');
+    const saveName = ref('');
+    const useCrowsFoot = ref(localStorage.getItem('useCrowsFoot') === 'true');
+    const fontSize = ref(Number(localStorage.getItem('fontSize')) || 14);
 
     const diagram = computed(() =>
       entities.value.length
-        ? { entities: entities.value, viewBox: viewBox.value, viewBoxWidth: viewBoxWidth.value, viewBoxHeight: viewBoxHeight.value }
+        ? { 
+            entities: entities.value, 
+            viewBox: viewBox.value, 
+            viewBoxWidth: viewBoxWidth.value, 
+            viewBoxHeight: viewBoxHeight.value,
+            useCrowsFoot: useCrowsFoot.value,
+            fontSize: fontSize.value
+          }
         : null
     );
 
     const renderedRelations = computed(() =>
-      computeRelations(entities.value, relations.value)
+      computeRelations(entities.value, relations.value, useCrowsFoot.value)
     );
 
     const linkedColumns = computed(() => {
@@ -45,6 +66,207 @@ createApp({
 
     function isLinkedColumn(entityName, attrName) {
       return linkedColumns.value.has(`${entityName}|${attrName}`);
+    }
+
+    function getEntityColor(entityName) {
+      return '#fff';
+    }
+
+    function saveEntityPositions() {
+      const positions = {};
+      for (const e of entities.value) {
+        positions[e.name] = { x: e.x, y: e.y };
+      }
+      localStorage.setItem('entityPositions', JSON.stringify(positions));
+    }
+
+    function restoreEntityPositions() {
+      const saved = localStorage.getItem('entityPositions');
+      if (!saved) return;
+      try {
+        const positions = JSON.parse(saved);
+        window._restorePositions = positions;
+      } catch (_) { }
+    }
+
+    function saveState() {
+      undoStack.value.push(JSON.stringify(entities.value.map(e => ({ name: e.name, x: e.x, y: e.y }))));
+      if (undoStack.value.length > 50) undoStack.value.shift();
+      redoStack.value = [];
+    }
+
+    function undo() {
+      if (undoStack.value.length === 0) return;
+      const current = JSON.stringify(entities.value.map(e => ({ name: e.name, x: e.x, y: e.y })));
+      redoStack.value.push(current);
+      const previous = undoStack.value.pop();
+      if (previous) {
+        const positions = JSON.parse(previous);
+        for (const e of entities.value) {
+          const pos = positions.find(p => p.name === e.name);
+          if (pos) {
+            e.x = pos.x;
+            e.y = pos.y;
+          }
+        }
+        const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+        const vbStr = computeViewBox(entities.value, computedRels);
+        viewBox.value = vbStr;
+        const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+        viewBoxWidth.value = vbW;
+        viewBoxHeight.value = vbH;
+        saveEntityPositions();
+      }
+    }
+
+    function redo() {
+      if (redoStack.value.length === 0) return;
+      const current = JSON.stringify(entities.value.map(e => ({ name: e.name, x: e.x, y: e.y })));
+      undoStack.value.push(current);
+      const next = redoStack.value.pop();
+      if (next) {
+        const positions = JSON.parse(next);
+        for (const e of entities.value) {
+          const pos = positions.find(p => p.name === e.name);
+          if (pos) {
+            e.x = pos.x;
+            e.y = pos.y;
+          }
+        }
+        const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+        const vbStr = computeViewBox(entities.value, computedRels);
+        viewBox.value = vbStr;
+        const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+        viewBoxWidth.value = vbW;
+        viewBoxHeight.value = vbH;
+        saveEntityPositions();
+      }
+    }
+
+    function zoomIn() {
+      zoomLevel.value = Math.min(zoomLevel.value * 1.2, 3);
+      applyZoom();
+    }
+
+    function zoomOut() {
+      zoomLevel.value = Math.max(zoomLevel.value / 1.2, 0.3);
+      applyZoom();
+    }
+
+    function resetZoom() {
+      zoomLevel.value = 1;
+      panOffset.value = { x: 0, y: 0 };
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
+    }
+
+    function applyZoom() {
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      const [x, y, w, h] = vbStr.split(' ').map(Number);
+      const scaledW = w / zoomLevel.value;
+      const scaledH = h / zoomLevel.value;
+      const scaledX = x - panOffset.value.x;
+      const scaledY = y - panOffset.value.y;
+      viewBox.value = `${scaledX} ${scaledY} ${scaledW} ${scaledH}`;
+      viewBoxWidth.value = scaledW;
+      viewBoxHeight.value = scaledH;
+    }
+
+    function autoLayout() {
+      if (entities.value.length === 0) return;
+      saveState();
+      
+      // Utiliser l'algorithme de layout avancé de diagram.js
+      const positioned = layoutEntities(entities.value, relations.value);
+      const computedRels = computeRelations(positioned, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(positioned, computedRels);
+      
+      // Mettre à jour les positions des entités
+      for (let i = 0; i < entities.value.length; i++) {
+        entities.value[i].x = positioned[i].x;
+        entities.value[i].y = positioned[i].y;
+      }
+      
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
+      zoomLevel.value = 1;
+      panOffset.value = { x: 0, y: 0 };
+      saveEntityPositions();
+    }
+
+    function onWheel(event) {
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        const delta = event.deltaY > 0 ? 0.9 : 1.1;
+        zoomLevel.value = Math.max(0.3, Math.min(3, zoomLevel.value * delta));
+        applyZoom();
+      } else {
+        panOffset.value.x += event.deltaX / zoomLevel.value;
+        panOffset.value.y += event.deltaY / zoomLevel.value;
+        applyZoom();
+      }
+    }
+
+    function onPanStart(event) {
+      if (event.target.closest('.entity-group')) return;
+      isPanning.value = true;
+      panStart.value = { x: event.clientX, y: event.clientY };
+    }
+
+    function onPanMove(event) {
+      if (!isPanning.value || !panStart.value) return;
+      const dx = (event.clientX - panStart.value.x) / zoomLevel.value;
+      const dy = (event.clientY - panStart.value.y) / zoomLevel.value;
+      panOffset.value.x += dx;
+      panOffset.value.y += dy;
+      panStart.value = { x: event.clientX, y: event.clientY };
+      applyZoom();
+    }
+
+    function onPanEnd() {
+      isPanning.value = false;
+      panStart.value = null;
+    }
+
+    function toggleCollapse(entity) {
+      entity.collapsed = !entity.collapsed;
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
+      saveEntityPositions();
+    }
+
+    function onSvgDblClick(event) {
+      const svg = event.currentTarget;
+      const pt = getSvgPoint(svg, event.clientX, event.clientY);
+      const entityName = prompt('Nom de la nouvelle entité :');
+      if (!entityName) return;
+      const newEntity = {
+        name: entityName,
+        attributes: [],
+        x: pt.x - 90,
+        y: pt.y - 40,
+        width: 180,
+        height: 80
+      };
+      entities.value.push(newEntity);
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
+      saveEntityPositions();
     }
 
     async function generate() {
@@ -67,12 +289,28 @@ createApp({
           throw new Error(data.error || 'Erreur lors de l\'analyse du schéma.');
         }
 
-        const built = buildDiagram(data.entities, data.relations);
+        const built = buildDiagram(data.entities, data.relations, useCrowsFoot.value);
         entities.value = built.entities;
         relations.value = built.relations;
         viewBox.value = built.viewBox;
         viewBoxWidth.value = built.viewBoxWidth;
         viewBoxHeight.value = built.viewBoxHeight;
+
+        if (window._restorePositions) {
+          for (const e of entities.value) {
+            if (window._restorePositions[e.name]) {
+              e.x = window._restorePositions[e.name].x;
+              e.y = window._restorePositions[e.name].y;
+            }
+          }
+          const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+          const vbStr = computeViewBox(entities.value, computedRels);
+          viewBox.value = vbStr;
+          const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+          viewBoxWidth.value = vbW;
+          viewBoxHeight.value = vbH;
+          delete window._restorePositions;
+        }
       } catch (err) {
         error.value = err.message || 'Une erreur est survenue.';
       } finally {
@@ -86,13 +324,10 @@ createApp({
 
       const clone = svgEl.cloneNode(true);
 
-      // Supprimer les classes/interactions liées au drag
       clone.querySelectorAll('.entity-group.dragging').forEach(g => g.classList.remove('dragging'));
 
-      // S'assurer que xmlns est présent
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
-      // Ajouter les styles depuis les classes CSS en les inlineant dans un <style>
       const styleRules = [];
       for (const sheet of document.styleSheets) {
         try {
@@ -108,7 +343,7 @@ createApp({
               styleRules.push(rule.cssText);
             }
           }
-        } catch (_) { /* CORS restrictions sur les feuilles externes */ }
+        } catch (_) { }
       }
       if (styleRules.length) {
         const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -126,7 +361,6 @@ createApp({
       const serializer = new XMLSerializer();
       let svgStr = serializer.serializeToString(clone);
 
-      // Ajouter la déclaration XML
       svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgStr;
 
       const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
@@ -148,7 +382,6 @@ createApp({
       const serializer = new XMLSerializer();
       let svgStr = serializer.serializeToString(clone);
 
-      // Obtenir les dimensions réelles du SVG
       const svgEl = document.querySelector('.diagram-svg');
       const vb = svgEl.getAttribute('viewBox');
       let imgW, imgH;
@@ -161,7 +394,6 @@ createApp({
         imgH = svgEl.clientHeight || 600;
       }
 
-      // Créer un Blob SVG
       const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
 
@@ -173,17 +405,13 @@ createApp({
           img.src = url;
         });
 
-        // Facteur d'échelle pour une bonne qualité (2x)
         const scale = 2;
         const canvas = document.createElement('canvas');
         canvas.width = imgW * scale;
         canvas.height = imgH * scale;
         const ctx = canvas.getContext('2d');
-        
-        // Fond blanc
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
         ctx.scale(scale, scale);
         ctx.drawImage(img, 0, 0);
 
@@ -198,7 +426,6 @@ createApp({
           new ClipboardItem({ 'image/png': blob })
         ]);
 
-        // Feedback visuel temporaire
         const btn = document.querySelector('.diagram-toolbar .btn-sm:last-child');
         if (btn) {
           const originalText = btn.textContent;
@@ -211,7 +438,6 @@ createApp({
         }
       } catch (err) {
         console.error('Erreur de copie:', err);
-        // Fallback si l'API Clipboard n'est pas supportée
         const canvas = document.createElement('canvas');
         canvas.width = imgW;
         canvas.height = imgH;
@@ -238,27 +464,78 @@ createApp({
       generate();
     }
 
+    function isEntitySelected(entity) {
+      return selectedEntities.value.has(entity.name);
+    }
+
     function onEntityPointerDown(entity, event) {
       event.preventDefault();
+      event.stopPropagation();
       const svg = event.currentTarget.closest('svg');
       const pt = getSvgPoint(svg, event.clientX, event.clientY);
 
+      const name = entity.name;
+
+      if (event.ctrlKey || event.metaKey) {
+        const newSet = new Set(selectedEntities.value);
+        if (newSet.has(name)) {
+          newSet.delete(name);
+        } else {
+          newSet.add(name);
+        }
+        selectedEntities.value = newSet;
+        return;
+      }
+
+      if (!selectedEntities.value.has(name)) {
+        selectedEntities.value = new Set([name]);
+      }
+
+      saveState();
+
+      const selEntities = entities.value.filter(e => selectedEntities.value.has(e.name));
+      const startPositions = {};
+      for (const e of selEntities) {
+        startPositions[e.name] = { x: e.x, y: e.y };
+      }
+
       dragState.value = {
-        entityName: entity.name,
+        entityName: name,
         offsetX: pt.x - entity.x,
         offsetY: pt.y - entity.y,
+        startPositions,
+        startX: pt.x,
+        startY: pt.y,
       };
-      draggingEntity.value = entity.name;
+      draggingEntity.value = name;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     function onEntityPointerMove(entity, event) {
-      if (!dragState.value || dragState.value.entityName !== entity.name) return;
+      if (!dragState.value) return;
+      if (dragState.value.entityName !== entity.name) return;
 
       const svg = event.currentTarget.closest('svg');
       const pt = getSvgPoint(svg, event.clientX, event.clientY);
-      entity.x = pt.x - dragState.value.offsetX;
-      entity.y = pt.y - dragState.value.offsetY;
+      const dx = pt.x - dragState.value.startX;
+      const dy = pt.y - dragState.value.startY;
+
+      for (const e of entities.value) {
+        if (selectedEntities.value.has(e.name)) {
+          const start = dragState.value.startPositions[e.name];
+          if (start) {
+            e.x = start.x + dx;
+            e.y = start.y + dy;
+          }
+        }
+      }
+
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const vbStr = computeViewBox(entities.value, computedRels);
+      viewBox.value = vbStr;
+      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
+      viewBoxWidth.value = vbW;
+      viewBoxHeight.value = vbH;
     }
 
     function onEntityPointerUp(entity, event) {
@@ -266,16 +543,134 @@ createApp({
 
       dragState.value = null;
       draggingEntity.value = null;
-      const computedRels = computeRelations(entities.value, relations.value);
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
       const vbStr = computeViewBox(entities.value, computedRels);
       viewBox.value = vbStr;
       const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
       viewBoxWidth.value = vbW;
       viewBoxHeight.value = vbH;
       event.currentTarget.releasePointerCapture(event.pointerId);
+
+      saveEntityPositions();
     }
 
+    function onKeyDown(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    restoreEntityPositions();
+
+    watch(schemaText, (val) => localStorage.setItem('schemaText', val));
+    watch(theme, (val) => localStorage.setItem('theme', val));
+    watch(saves, (val) => localStorage.setItem('saves', JSON.stringify(val)), { deep: true });
+    watch(useCrowsFoot, (val) => localStorage.setItem('useCrowsFoot', val));
+    watch(fontSize, (val) => localStorage.setItem('fontSize', val));
+
     generate();
+
+    setTimeout(() => {
+      const svg = document.querySelector('.diagram-svg');
+      const wrapper = document.querySelector('.diagram-wrapper');
+      if (svg) {
+        svg.addEventListener('wheel', onWheel, { passive: false });
+      }
+      if (wrapper) {
+        wrapper.addEventListener('pointerdown', onPanStart);
+        window.addEventListener('pointermove', onPanMove);
+        window.addEventListener('pointerup', onPanEnd);
+      }
+      window.addEventListener('keydown', onKeyDown);
+    }, 100);
+
+    function importSql() {
+      const sql = prompt('Collez votre requête SQL CREATE TABLE :');
+      if (!sql) return;
+      try {
+        const tables = parseSqlToSchema(sql);
+        schemaText.value = tables;
+        generate();
+      } catch (err) {
+        error.value = 'Erreur d\'import SQL : ' + err.message;
+      }
+    }
+
+    function parseSqlToSchema(sql) {
+      const lines = sql.split('\n');
+      const tables = [];
+      const regex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"[]?(\w+)[`"\]]?\s*\(([\s\S]+?)\)/gi;
+      let match;
+      while ((match = regex.exec(sql)) !== null) {
+        const tableName = match[1];
+        const cols = match[2].split(',').map(c => c.trim()).filter(c => c);
+        const attrs = [];
+        const pks = [];
+        const fks = [];
+        for (const col of cols) {
+          const upper = col.toUpperCase();
+          if (upper.startsWith('PRIMARY KEY') || upper.startsWith('CONSTRAINT')) continue;
+          const nameMatch = col.match(/^[`"[]?(\w+)[`"\]]?/i);
+          if (!nameMatch) continue;
+          const name = nameMatch[1];
+          const isPk = upper.includes('PRIMARY KEY');
+          const fkMatch = col.match(/REFERENCES\s+[`"[]?(\w+)[`"\]]?\s*[\(]?[`"[]?(\w+)[`"\]]?[\)]?/i);
+          if (fkMatch) {
+            fks.push({ name, refTable: fkMatch[1], refCol: fkMatch[2] });
+          } else {
+            attrs.push({ name, isPk });
+            if (isPk) pks.push(name);
+          }
+        }
+        const pkStr = pks.map(p => p + '#').join(', ');
+        const fkStr = fks.map(f => f.name + '# -> ' + f.refTable + '.' + f.refCol).join(', ');
+        const allAttrs = [...attrs.map(a => a.name), ...fks.map(f => f.name)];
+        const tableDef = `${tableName}(${allAttrs.join(', ')}${pkStr ? ', PK[' + pks.join(', ') + ']' : ''}${fkStr ? ', ' + fkStr : ''})`;
+        tables.push(tableDef);
+      }
+      return tables.join('\n');
+    }
+
+    function saveDiagram() {
+      const name = prompt('Nom de la sauvegarde :', saveName.value || 'Sauvegarde ' + (saves.value.length + 1));
+      if (!name) return;
+      saveName.value = name;
+      saves.value.push({
+        name,
+        schemaText: schemaText.value,
+        theme: theme.value,
+        entityPositions: JSON.parse(localStorage.getItem('entityPositions') || '{}'),
+        date: new Date().toISOString()
+      });
+    }
+
+    function loadSave() {
+      if (selectedSave.value === '') return;
+      const s = saves.value[selectedSave.value];
+      if (!s) return;
+      schemaText.value = s.schemaText;
+      theme.value = s.theme;
+      if (s.entityPositions) {
+        localStorage.setItem('entityPositions', JSON.stringify(s.entityPositions));
+      }
+      generate();
+    }
+
+    function deleteSave() {
+      if (selectedSave.value === '') return;
+      if (!confirm('Supprimer cette sauvegarde ?')) return;
+      saves.value.splice(selectedSave.value, 1);
+      selectedSave.value = '';
+    }
 
     return {
       schemaText,
@@ -283,15 +678,37 @@ createApp({
       renderedRelations,
       error,
       loading,
+      theme,
+      selectedEntities,
       draggingEntity,
+      zoomLevel,
+      saves,
+      selectedSave,
+      saveName,
       generate,
       exportSvg,
       copyAsImage,
       loadExample,
       isLinkedColumn,
+      isEntitySelected,
       onEntityPointerDown,
       onEntityPointerMove,
       onEntityPointerUp,
+      zoomIn,
+      zoomOut,
+      resetZoom,
+      autoLayout,
+      undo,
+      redo,
+      importSql,
+      saveDiagram,
+      loadSave,
+      deleteSave,
+      useCrowsFoot,
+      fontSize,
+      getEntityColor,
+      toggleCollapse,
+      onSvgDblClick,
     };
   },
 }).mount('#app');

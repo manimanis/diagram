@@ -150,7 +150,21 @@ function buildRelations(array $entities): array
             }
             $seen[$key] = true;
 
-            $fkInPk = in_array($attribute['name'], $fromEntity['primaryKey'], true);
+            // Vérifier si TOUS les attributs de la PK source pointent vers la MÊME entité cible
+            // → condition pour une relation 1-1 (toute la PK mère reliée à toute la PK fille)
+            $isFullPkRef = false;
+            $pkAttrs = $fromEntity['primaryKey'];
+            if (count($pkAttrs) > 0) {
+                $fkAttrsToTarget = array_filter($fromEntity['attributes'], function ($a) use ($target) {
+                    if (!$a['isFk']) return false;
+                    if (isset($a['references'])) {
+                        return $a['references']['entity'] === $target['name'];
+                    }
+                    return in_array($a['name'], $target['primaryKey'], true);
+                });
+                $fkAttrNamesToTarget = array_map(fn($a) => $a['name'], $fkAttrsToTarget);
+                $isFullPkRef = !array_diff($pkAttrs, $fkAttrNamesToTarget);
+            }
 
             // Déterminer l'attribut cible (viaTarget)
             // Si référence explicite, utiliser l'attribut référencé
@@ -173,14 +187,16 @@ function buildRelations(array $entities): array
                 }
             }
 
-            // Merise : côté FK (from) = (1,1) si obligatoire, (0,1) sinon ; côté référencé (to) = (0,N)
+            // Cardinalités Merise :
+            //   - Si FK est dans la PK (toute la PK source pointe vers la cible) → 1-1
+            //   - Sinon → côté FK = plusieurs (1,∞), côté PK = 1 (1,1)
             $relations[] = [
                 'from' => $fromEntity['name'],
                 'to' => $target['name'],
                 'via' => $attribute['name'],
                 'viaTarget' => $viaTarget,
-                'cardinalityFrom' => $fkInPk ? '(1,1)' : '(0,1)',
-                'cardinalityTo' => '(0,∞)',
+                'cardinalityFrom' => $isFullPkRef ? '(1,1)' : '(1,∞)',
+                'cardinalityTo' => $isFullPkRef ? '(1,1)' : '(1,1)',
             ];
         }
     }
