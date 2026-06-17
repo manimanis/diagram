@@ -37,6 +37,25 @@ createApp({
     const saveName = ref('');
     const useCrowsFoot = ref(localStorage.getItem('useCrowsFoot') === 'true');
     const fontSize = ref(Number(localStorage.getItem('fontSize')) || 14);
+    const snapToGrid = ref(localStorage.getItem('snapToGrid') !== 'false');
+    const showThemeMenu = ref(false);
+    const themeNames = {
+      light: 'Clair',
+      pastel: 'Pastel',
+      forest: 'Forêt',
+      rose: 'Rose',
+      dark: 'Sombre'
+    };
+
+    const diagramStats = computed(() => {
+      if (!entities.value.length) return null;
+      const rels = renderedRelations.value;
+      return {
+        entities: entities.value.length,
+        relations: rels.length,
+        attributes: entities.value.reduce((sum, e) => sum + (e.attributes ? e.attributes.length : 0), 0)
+      };
+    });
 
     const diagram = computed(() =>
       entities.value.length
@@ -520,12 +539,22 @@ createApp({
       const dx = pt.x - dragState.value.startX;
       const dy = pt.y - dragState.value.startY;
 
+      const gridSize = 20;
+      
       for (const e of entities.value) {
         if (selectedEntities.value.has(e.name)) {
           const start = dragState.value.startPositions[e.name];
           if (start) {
-            e.x = start.x + dx;
-            e.y = start.y + dy;
+            let newX = start.x + dx;
+            let newY = start.y + dy;
+            
+            if (snapToGrid.value) {
+              newX = Math.round(newX / gridSize) * gridSize;
+              newY = Math.round(newY / gridSize) * gridSize;
+            }
+            
+            e.x = newX;
+            e.y = newY;
           }
         }
       }
@@ -567,6 +596,15 @@ createApp({
         event.preventDefault();
         redo();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        selectAllEntities();
+      }
+    }
+
+    function selectAllEntities() {
+      if (entities.value.length === 0) return;
+      selectedEntities.value = new Set(entities.value.map(e => e.name));
     }
 
     restoreEntityPositions();
@@ -576,6 +614,7 @@ createApp({
     watch(saves, (val) => localStorage.setItem('saves', JSON.stringify(val)), { deep: true });
     watch(useCrowsFoot, (val) => localStorage.setItem('useCrowsFoot', val));
     watch(fontSize, (val) => localStorage.setItem('fontSize', val));
+    watch(snapToGrid, (val) => localStorage.setItem('snapToGrid', val));
 
     generate();
 
@@ -675,6 +714,7 @@ createApp({
     return {
       schemaText,
       diagram,
+      diagramStats,
       renderedRelations,
       error,
       loading,
@@ -706,9 +746,13 @@ createApp({
       deleteSave,
       useCrowsFoot,
       fontSize,
+      snapToGrid,
+      showThemeMenu,
+      themeNames,
       getEntityColor,
       toggleCollapse,
       onSvgDblClick,
+      selectAllEntities,
     };
   },
 }).mount('#app');

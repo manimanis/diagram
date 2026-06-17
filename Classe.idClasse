@@ -1,4 +1,0 @@
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   488  100   361  100   127   164k  59401 --:--:-- --:--:-- --:--:--  238k
-{"entities":[{"name":"Classe","attributes":[{"name":"idClasse","isPk":true,"isFk":false},{"name":"libelleCl","isPk":false,"isFk":false}],"primaryKey":["idClasse"]},{"name":"ClasseEleve","attributes":[{"name":"idClasse# -","isPk":false,"isFk":false},{"name":"annee_scolaire","isPk":true,"isFk":false}],"primaryKey":["idClasse","annee_scolaire"]}],"relations":[]}

@@ -10,13 +10,12 @@
 <body>
   <div id="app">
     <header class="header">
-      <h1>Diagramme entité-relation</h1>
-      <p class="subtitle">Saisissez la représentation textuelle du schéma pour générer le diagramme avec relations et cardinalités.</p>
+      <h1>Représentation Graphique - Base de données</h1>
     </header>
 
     <main class="layout">
       <section class="panel panel-input">
-        <label for="schema-input">Schéma textuel</label>
+        <label for="schema-input">Représentation textuelle</label>
         <textarea
           id="schema-input"
           v-model="schemaText"
@@ -71,40 +70,54 @@
 
       <section class="panel panel-diagram">
         <div v-if="!diagram" class="empty-state">
+          <span class="empty-state-icon">📊</span>
           <p>Le diagramme apparaîtra ici après génération.</p>
         </div>
 
-        <div v-else class="diagram-wrapper" ref="diagramWrapper">
+        <template v-else>
+          <div class="stats-bar" v-if="diagramStats">
+            <span class="stat">📊 <span class="num">{{ diagramStats.entities }}</span> entités</span>
+            <span class="stat">🔗 <span class="num">{{ diagramStats.relations }}</span> relations</span>
+            <span class="stat">🏷️ <span class="num">{{ diagramStats.attributes }}</span> attributs</span>
+          </div>
           <div class="diagram-toolbar">
-            <div class="theme-selector">
-              <label class="theme-label">
-                <input type="radio" value="light" v-model="theme" id="theme-light" />
-                <span class="theme-btn" :class="{ active: theme === 'light' }">Clair</span>
-              </label>
-              <label class="theme-label">
-                <input type="radio" value="pastel" v-model="theme" id="theme-pastel" />
-                <span class="theme-btn" :class="{ active: theme === 'pastel' }">Pastel</span>
-              </label>
-              <label class="theme-label">
-                <input type="radio" value="forest" v-model="theme" id="theme-forest" />
-                <span class="theme-btn" :class="{ active: theme === 'forest' }">Forêt</span>
-              </label>
-              <label class="theme-label">
-                <input type="radio" value="rose" v-model="theme" id="theme-rose" />
-                <span class="theme-btn" :class="{ active: theme === 'rose' }">Rose</span>
-              </label>
-              <label class="theme-label">
-                <input type="radio" value="dark" v-model="theme" id="theme-dark" />
-                <span class="theme-btn" :class="{ active: theme === 'dark' }">Sombre</span>
-              </label>
+            <div class="theme-dropdown">
+              <button type="button" class="theme-dropdown-btn" @click="showThemeMenu = !showThemeMenu">
+                🎨 Thème : {{ themeNames[theme] }}
+              </button>
+              <div class="theme-dropdown-menu" v-if="showThemeMenu">
+                <button type="button" class="theme-option" :class="{ active: theme === 'light' }" @click="theme = 'light'; showThemeMenu = false">
+                  <span class="theme-preview light"></span>
+                  Clair
+                </button>
+                <button type="button" class="theme-option" :class="{ active: theme === 'pastel' }" @click="theme = 'pastel'; showThemeMenu = false">
+                  <span class="theme-preview pastel"></span>
+                  Pastel
+                </button>
+                <button type="button" class="theme-option" :class="{ active: theme === 'forest' }" @click="theme = 'forest'; showThemeMenu = false">
+                  <span class="theme-preview forest"></span>
+                  Forêt
+                </button>
+                <button type="button" class="theme-option" :class="{ active: theme === 'rose' }" @click="theme = 'rose'; showThemeMenu = false">
+                  <span class="theme-preview rose"></span>
+                  Rose
+                </button>
+                <button type="button" class="theme-option" :class="{ active: theme === 'dark' }" @click="theme = 'dark'; showThemeMenu = false">
+                  <span class="theme-preview dark"></span>
+                  Sombre
+                </button>
+              </div>
             </div>
             <div class="toolbar-actions">
-              <button type="button" class="btn btn-secondary btn-sm" @click="zoomIn" title="Zoom avant">+</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="zoomOut" title="Zoom arrière">−</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="resetZoom" title="Réinitialiser le zoom">⟲</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="autoLayout" title="Réorganiser automatiquement">⊞</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="undo" title="Annuler (Ctrl+Z)">↶</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="redo" title="Rétablir (Ctrl+Y)">↷</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" :class="{ active: snapToGrid }" @click="snapToGrid = !snapToGrid" data-tooltip="Grille magnétique" title="Grille magnétique">⊞</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="selectAllEntities" data-tooltip="Sélectionner tout (Ctrl+A)" title="Sélectionner tout">☰</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomIn" data-tooltip="Zoom avant" title="Zoom avant">+</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomOut" data-tooltip="Zoom arrière" title="Zoom arrière">−</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="resetZoom" data-tooltip="Réinitialiser" title="Réinitialiser le zoom">⟲</button>
+              <span class="zoom-indicator">{{ Math.round(zoomLevel * 100) }}%</span>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="autoLayout" data-tooltip="Auto-layout" title="Réorganiser automatiquement">⊞</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="undo" data-tooltip="Annuler (Ctrl+Z)" title="Annuler">↶</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="redo" data-tooltip="Rétablir (Ctrl+Y)" title="Rétablir">↷</button>
               <label class="font-size-control" title="Taille de police">
                 <input type="number" v-model.number="fontSize" min="10" max="24" step="1" />
                 px
@@ -113,119 +126,121 @@
               <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage">Copier en tant qu'image</button>
             </div>
           </div>
-          <svg
-            :viewBox="diagram.viewBox"
-            :width="diagram.viewBoxWidth"
-            :height="diagram.viewBoxHeight"
-            class="diagram-svg"
-            :class="'theme-' + theme"
-            xmlns="http://www.w3.org/2000/svg"
-            style="overflow: visible;"
-            @dblclick="onSvgDblClick"
-          >
-            <defs>
-              <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-                <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
-              </marker>
-            </defs>
+          <div class="diagram-wrapper" ref="diagramWrapper">
+            <svg
+              :viewBox="diagram.viewBox"
+              :width="diagram.viewBoxWidth"
+              :height="diagram.viewBoxHeight"
+              class="diagram-svg"
+              :class="'theme-' + theme"
+              xmlns="http://www.w3.org/2000/svg"
+              style="overflow: visible;"
+              @dblclick="onSvgDblClick"
+            >
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+                </marker>
+              </defs>
 
-            <!-- Entités -->
-            <g class="entities">
-              <g
-                v-for="entity in diagram.entities"
-                :key="entity.name"
-                class="entity-group"
-                :class="{ dragging: draggingEntity === entity.name, selected: isEntitySelected(entity) }"
-                :transform="'translate(' + entity.x + ',' + entity.y + ')'"
-                @pointerdown="onEntityPointerDown(entity, $event)"
-                @pointermove="onEntityPointerMove(entity, $event)"
-                @pointerup="onEntityPointerUp(entity, $event)"
-                @pointercancel="onEntityPointerUp(entity, $event)"
-              >
-                <rect
-                  :width="entity.width"
-                  :height="entity.height"
-                  rx="6"
-                  class="entity-box"
-                />
-                <rect
-                  :width="entity.width"
-                  height="32"
-                  rx="6"
-                  class="entity-header-bg"
-                  pointer-events="none"
-                />
-                <rect
-                  y="26"
-                  :width="entity.width"
-                  height="6"
-                  class="entity-header-cover"
-                  pointer-events="none"
-                />
-                <text
-                  :x="entity.width / 2"
-                  :y="22 + (diagram.fontSize - 14) * 0.3"
-                  class="entity-title"
-                  text-anchor="middle"
-                  pointer-events="none"
-                  :style="{ fontSize: diagram.fontSize + 'px' }"
-                >{{ entity.name }}</text>
-                <text
-                  :x="entity.width - 12"
-                  y="22 + (diagram.fontSize - 14) * 0.3"
-                  class="collapse-toggle"
-                  text-anchor="end"
-                  @click="toggleCollapse(entity)"
-                  :style="{ fontSize: (diagram.fontSize - 2) + 'px' }"
-                >{{ entity.collapsed ? '+' : '−' }}</text>
-
-                <g v-if="!entity.collapsed">
-                  <g v-for="(attr, j) in entity.attributes" :key="attr.name" pointer-events="none">
-                  <text
-                    x="12"
-                    :y="48 + j * 22 + (diagram.fontSize - 14) * 0.3"
-                    class="attribute-name"
-                    :class="{ 'is-pk': attr.isPk, 'is-fk': attr.isFk, 'is-linked': isLinkedColumn(entity.name, attr.name) }"
-                    :style="{ fontSize: diagram.fontSize + 'px' }"
-                  >
-                    {{ attr.name }}<tspan v-if="attr.isFk">#</tspan>
-                  </text>
-                  <!-- Ligne de soulignement pour les clés primaires -->
-                  <line
-                    v-if="attr.isPk"
-                    :x1="12"
-                    :y1="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
-                    :x2="12 + attr.name.length * 7.9 * (diagram.fontSize / 14) + (attr.isFk ? 7.9 * (diagram.fontSize / 14) : 0)"
-                    :y2="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
-                    class="pk-underline"
+              <!-- Entités -->
+              <g class="entities">
+                <g
+                  v-for="entity in diagram.entities"
+                  :key="entity.name"
+                  class="entity-group"
+                  :class="{ dragging: draggingEntity === entity.name, selected: isEntitySelected(entity) }"
+                  :transform="'translate(' + entity.x + ',' + entity.y + ')'"
+                  @pointerdown="onEntityPointerDown(entity, $event)"
+                  @pointermove="onEntityPointerMove(entity, $event)"
+                  @pointerup="onEntityPointerUp(entity, $event)"
+                  @pointercancel="onEntityPointerUp(entity, $event)"
+                >
+                  <rect
+                    :width="entity.width"
+                    :height="entity.height"
+                    rx="6"
+                    class="entity-box"
                   />
-                  </g>
-                </g>
-            </g>
+                  <rect
+                    :width="entity.width"
+                    height="32"
+                    rx="6"
+                    class="entity-header-bg"
+                    pointer-events="none"
+                  />
+                  <rect
+                    y="26"
+                    :width="entity.width"
+                    height="6"
+                    class="entity-header-cover"
+                    pointer-events="none"
+                  />
+                  <text
+                    :x="entity.width / 2"
+                    :y="22 + (diagram.fontSize - 14) * 0.3"
+                    class="entity-title"
+                    text-anchor="middle"
+                    pointer-events="none"
+                    :style="{ fontSize: diagram.fontSize + 'px' }"
+                  >{{ entity.name }}</text>
+                  <text
+                    :x="entity.width - 12"
+                    y="22 + (diagram.fontSize - 14) * 0.3"
+                    class="collapse-toggle"
+                    text-anchor="end"
+                    @click="toggleCollapse(entity)"
+                    :style="{ fontSize: (diagram.fontSize - 2) + 'px' }"
+                  >{{ entity.collapsed ? '+' : '−' }}</text>
 
-            <!-- Relations (au-dessus des entités, alignées sur les colonnes) -->
-            <g class="relations">
-              <g v-for="(rel, i) in renderedRelations" :key="'rel-' + i">
-                <path
-                  :d="rel.pathD"
-                  class="relation-line"
-                />
-                <circle :cx="rel.x1" :cy="rel.y1" r="3" class="relation-anchor" />
-                <circle :cx="rel.x2" :cy="rel.y2" r="3" class="relation-anchor" />
-                <text
-                  :x="rel.labelFrom.x" :y="rel.labelFrom.y"
-                  class="cardinality-label"
-                  text-anchor="middle"
-                >{{ rel.cardinalityFrom }}</text>
-                <text
-                  :x="rel.labelTo.x" :y="rel.labelTo.y"
-                  class="cardinality-label"
-                  text-anchor="middle"
-                >{{ rel.cardinalityTo }}</text>
+                  <g v-if="!entity.collapsed">
+                    <g v-for="(attr, j) in entity.attributes" :key="attr.name" pointer-events="none">
+                    <text
+                      x="12"
+                      :y="48 + j * 22 + (diagram.fontSize - 14) * 0.3"
+                      class="attribute-name"
+                      :class="{ 'is-pk': attr.isPk, 'is-fk': attr.isFk, 'is-linked': isLinkedColumn(entity.name, attr.name) }"
+                      :style="{ fontSize: diagram.fontSize + 'px' }"
+                    >
+                      {{ attr.name }}<tspan v-if="attr.isFk">#</tspan>
+                    </text>
+                    <!-- Ligne de soulignement pour les clés primaires -->
+                    <line
+                      v-if="attr.isPk"
+                      :x1="12"
+                      :y1="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
+                      :x2="12 + attr.name.length * 7.9 * (diagram.fontSize / 14) + (attr.isFk ? 7.9 * (diagram.fontSize / 14) : 0)"
+                      :y2="50 + j * 22 + (diagram.fontSize - 14) * 0.3"
+                      class="pk-underline"
+                    />
+                    </g>
+                  </g>
               </g>
-            </g>
-          </svg>
-        </div>
+
+              <!-- Relations (au-dessus des entités, alignées sur les colonnes) -->
+              <g class="relations">
+                <g v-for="(rel, i) in renderedRelations" :key="'rel-' + i">
+                  <path
+                    :d="rel.pathD"
+                    class="relation-line"
+                  />
+                  <circle :cx="rel.x1" :cy="rel.y1" r="3" class="relation-anchor" />
+                  <circle :cx="rel.x2" :cy="rel.y2" r="3" class="relation-anchor" />
+                  <text
+                    :x="rel.labelFrom.x" :y="rel.labelFrom.y"
+                    class="cardinality-label"
+                    text-anchor="middle"
+                  >{{ rel.cardinalityFrom }}</text>
+                  <text
+                    :x="rel.labelTo.x" :y="rel.labelTo.y"
+                    class="cardinality-label"
+                    text-anchor="middle"
+                  >{{ rel.cardinalityTo }}</text>
+                </g>
+              </g>
+            </svg>
+          </div>
+        </template>
       </section>
     </main>
   </div>
