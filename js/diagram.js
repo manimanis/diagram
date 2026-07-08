@@ -277,7 +277,22 @@ function isAligned(fromPoint, fromSide, toPoint, toSide) {
   return false;
 }
 
-function generateBezierPath(fromPoint, fromSide, toPoint, toSide) {
+function generateBezierPath(fromPoint, fromSide, toPoint, toSide, manualOffset) {
+  if (manualOffset) {
+    const midX = (fromPoint.x + toPoint.x) / 2;
+    const midY = (fromPoint.y + toPoint.y) / 2;
+    const wpX = midX + manualOffset.dx;
+    const wpY = midY + manualOffset.dy;
+
+    const CURVE = 40;
+    let cp1x = fromPoint.x + (fromSide === 'right' ? CURVE : -CURVE);
+    let cp1y = fromPoint.y;
+    let cp4x = toPoint.x + (toSide === 'right' ? CURVE : -CURVE);
+    let cp4y = toPoint.y;
+
+    return `M ${fromPoint.x},${fromPoint.y} C ${cp1x},${cp1y} ${wpX},${wpY} ${wpX},${wpY} S ${cp4x},${cp4y} ${toPoint.x},${toPoint.y}`;
+  }
+
   const CURVE_OFFSET = Math.max(60, Math.abs(fromPoint.x - toPoint.x) * 0.35);
   
   let cp1x = fromPoint.x + (fromSide === 'right' ? CURVE_OFFSET : -CURVE_OFFSET);
@@ -317,7 +332,7 @@ function detectCardinality(fromEntity, toEntity, viaAttr) {
   return { from: '1', to: '∞' };
 }
 
-function computeRelations(entities, relations, useCrowsFoot = false) {
+function computeRelations(entities, relations, useCrowsFoot = false, manualOffsets = {}) {
   const entityMap = Object.fromEntries(entities.map((e) => [e.name, e]));
 
   function convertCardinality(card) {
@@ -346,16 +361,27 @@ function computeRelations(entities, relations, useCrowsFoot = false) {
     const toPt = toResult.point;
     const aligned = isAligned(fromPt, fromResult.side, toPt, toResult.side);
 
-    let pathD = generateBezierPath(fromPt, fromResult.side, toPt, toResult.side);
+    const relKey = `${rel.from}-${rel.to}-${rel.via}`;
+    const manualOffset = manualOffsets[relKey];
+
+    const midX = (fromPt.x + toPt.x) / 2;
+    const midY = (fromPt.y + toPt.y) / 2;
+    const wpX = manualOffset ? midX + manualOffset.dx : midX;
+    const wpY = manualOffset ? midY + manualOffset.dy : midY;
+
+    let pathD = generateBezierPath(fromPt, fromResult.side, toPt, toResult.side, manualOffset);
 
     return {
       from: rel.from,
       to: rel.to,
       via: fromAttrName,
+      relKey,
       x1: fromPt.x,
       y1: fromPt.y,
       x2: toPt.x,
       y2: toPt.y,
+      wpX,
+      wpY,
       pathD,
       aligned,
       cardinalityFrom: convertCardinality(maxCardinality(rel.cardinalityFrom)),
@@ -401,11 +427,16 @@ function computeViewBox(entities, relations) {
     }
   }
 
+  const startX = Math.min(0, minX - MARGIN);
+  const startY = Math.min(0, minY - MARGIN);
+  const endX = maxX + MARGIN;
+  const endY = maxY + MARGIN;
+
   return [
-    Math.max(0, minX - MARGIN),
-    Math.max(0, minY - MARGIN),
-    maxX - minX + MARGIN * 2,
-    maxY - minY + MARGIN * 2,
+    startX,
+    startY,
+    endX - startX,
+    endY - startY
   ].join(' ');
 }
 
@@ -416,9 +447,9 @@ function getSvgPoint(svg, clientX, clientY) {
   return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-function buildDiagram(entities, relations, useCrowsFoot = false) {
+function buildDiagram(entities, relations, useCrowsFoot = false, manualOffsets = {}) {
   const positionedEntities = layoutEntities(entities, relations);
-  const computedRels = computeRelations(positionedEntities, relations, useCrowsFoot);
+  const computedRels = computeRelations(positionedEntities, relations, useCrowsFoot, manualOffsets);
   const viewBoxStr = computeViewBox(positionedEntities, computedRels);
   console.log(viewBoxStr);
   const [vbX, vbY, vbW, vbH] = viewBoxStr.split(' ').map(Number);

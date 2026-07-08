@@ -46,6 +46,9 @@ createApp({
     const sidebarWidth = ref(Number(localStorage.getItem('sidebarWidth')) || 380);
     const isResizing = ref(false);
 
+    const manualOffsets = ref(JSON.parse(localStorage.getItem('manualOffsets') || '{}'));
+    watch(manualOffsets, (val) => localStorage.setItem('manualOffsets', JSON.stringify(val)), { deep: true });
+
     const themeNames = {
       light: 'Clair',
       pastel: 'Pastel',
@@ -78,7 +81,7 @@ createApp({
     );
 
     const renderedRelations = computed(() =>
-      computeRelations(entities.value, relations.value, useCrowsFoot.value)
+      computeRelations(entities.value, relations.value, useCrowsFoot.value, manualOffsets.value)
     );
 
     const linkedColumns = computed(() => {
@@ -135,13 +138,10 @@ createApp({
             e.y = pos.y;
           }
         }
-        const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-        const vbStr = computeViewBox(entities.value, computedRels);
-        viewBox.value = vbStr;
-        const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-        viewBoxWidth.value = vbW;
-        viewBoxHeight.value = vbH;
-        saveEntityPositions();
+        setTimeout(() => {
+          resetZoom();
+          saveEntityPositions();
+        }, 10);
       }
     }
 
@@ -159,13 +159,10 @@ createApp({
             e.y = pos.y;
           }
         }
-        const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-        const vbStr = computeViewBox(entities.value, computedRels);
-        viewBox.value = vbStr;
-        const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-        viewBoxWidth.value = vbW;
-        viewBoxHeight.value = vbH;
-        saveEntityPositions();
+        setTimeout(() => {
+          resetZoom();
+          saveEntityPositions();
+        }, 10);
       }
     }
 
@@ -182,48 +179,34 @@ createApp({
     function resetZoom() {
       zoomLevel.value = 1;
       panOffset.value = { x: 0, y: 0 };
-      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-      const vbStr = computeViewBox(entities.value, computedRels);
-      viewBox.value = vbStr;
-      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-      viewBoxWidth.value = vbW;
-      viewBoxHeight.value = vbH;
+      applyZoom();
     }
 
     function applyZoom() {
-      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
+      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value, manualOffsets.value);
       const vbStr = computeViewBox(entities.value, computedRels);
       const [x, y, w, h] = vbStr.split(' ').map(Number);
-      const scaledW = w / zoomLevel.value;
-      const scaledH = h / zoomLevel.value;
-      const scaledX = x - panOffset.value.x;
-      const scaledY = y - panOffset.value.y;
-      viewBox.value = `${scaledX} ${scaledY} ${scaledW} ${scaledH}`;
-      viewBoxWidth.value = scaledW;
-      viewBoxHeight.value = scaledH;
+      
+      const vx = x - panOffset.value.x;
+      const vy = y - panOffset.value.y;
+      
+      viewBox.value = `${vx} ${vy} ${w} ${h}`;
+      viewBoxWidth.value = w;
+      viewBoxHeight.value = h;
     }
 
     function autoLayout() {
       if (entities.value.length === 0) return;
       saveState();
       
-      // Utiliser l'algorithme de layout avancé de diagram.js
       const positioned = layoutEntities(entities.value, relations.value);
-      const computedRels = computeRelations(positioned, relations.value, useCrowsFoot.value);
-      const vbStr = computeViewBox(positioned, computedRels);
       
-      // Mettre à jour les positions des entités
       for (let i = 0; i < entities.value.length; i++) {
         entities.value[i].x = positioned[i].x;
         entities.value[i].y = positioned[i].y;
       }
       
-      viewBox.value = vbStr;
-      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-      viewBoxWidth.value = vbW;
-      viewBoxHeight.value = vbH;
-      zoomLevel.value = 1;
-      panOffset.value = { x: 0, y: 0 };
+      resetZoom();
       saveEntityPositions();
     }
 
@@ -241,7 +224,8 @@ createApp({
     }
 
     function onPanStart(event) {
-      if (event.target.closest('.entity-group')) return;
+      if (event.target.closest('.entity-group') || event.target.closest('.waypoint-control')) return;
+      selectedEntities.value.clear();
       isPanning.value = true;
       panStart.value = { x: event.clientX, y: event.clientY };
     }
@@ -263,12 +247,7 @@ createApp({
 
     function toggleCollapse(entity) {
       entity.collapsed = !entity.collapsed;
-      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-      const vbStr = computeViewBox(entities.value, computedRels);
-      viewBox.value = vbStr;
-      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-      viewBoxWidth.value = vbW;
-      viewBoxHeight.value = vbH;
+      applyZoom();
       saveEntityPositions();
     }
 
@@ -286,12 +265,8 @@ createApp({
         height: 80
       };
       entities.value.push(newEntity);
-      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-      const vbStr = computeViewBox(entities.value, computedRels);
-      viewBox.value = vbStr;
-      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-      viewBoxWidth.value = vbW;
-      viewBoxHeight.value = vbH;
+      applyZoom();
+      saveState();
       saveEntityPositions();
     }
 
@@ -315,12 +290,9 @@ createApp({
           throw new Error(data.error || 'Erreur lors de l\'analyse du schéma.');
         }
 
-        const built = buildDiagram(data.entities, data.relations, useCrowsFoot.value);
+        const built = buildDiagram(data.entities, data.relations, useCrowsFoot.value, manualOffsets.value);
         entities.value = built.entities;
         relations.value = built.relations;
-        viewBox.value = built.viewBox;
-        viewBoxWidth.value = built.viewBoxWidth;
-        viewBoxHeight.value = built.viewBoxHeight;
 
         if (window._restorePositions) {
           for (const e of entities.value) {
@@ -329,14 +301,12 @@ createApp({
               e.y = window._restorePositions[e.name].y;
             }
           }
-          const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-          const vbStr = computeViewBox(entities.value, computedRels);
-          viewBox.value = vbStr;
-          const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-          viewBoxWidth.value = vbW;
-          viewBoxHeight.value = vbH;
           delete window._restorePositions;
         }
+        setTimeout(() => {
+          resetZoom();
+          saveEntityPositions();
+        }, 10);
       } catch (err) {
         error.value = err.message || 'Une erreur est survenue.';
       } finally {
@@ -351,6 +321,7 @@ createApp({
       const clone = svgEl.cloneNode(true);
 
       clone.querySelectorAll('.entity-group.dragging').forEach(g => g.classList.remove('dragging'));
+      clone.querySelectorAll('.waypoint-control').forEach(wp => wp.remove());
 
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
@@ -475,11 +446,64 @@ createApp({
         img.onload = () => {
           ctx.drawImage(img, 0, 0);
           const link = document.createElement('a');
-          link.download = 'diagram.png';
+          link.download = 'diagram_copie.png';
           link.href = canvas.toDataURL('image/png');
           link.click();
         };
         img.src = url;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    async function exportPng() {
+      const clone = prepareSvgClone();
+      if (!clone) return;
+
+      const serializer = new XMLSerializer();
+      let svgStr = serializer.serializeToString(clone);
+
+      const svgEl = document.querySelector('.diagram-svg');
+      const vb = svgEl.getAttribute('viewBox');
+      let imgW, imgH;
+      if (vb) {
+        const parts = vb.split(' ').map(Number);
+        imgW = parts[2];
+        imgH = parts[3];
+      } else {
+        imgW = svgEl.clientWidth || 800;
+        imgH = svgEl.clientHeight || 600;
+      }
+
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Impossible de charger l\'image SVG.'));
+          img.src = url;
+        });
+
+        const scale = 2; // Export en haute résolution
+        const canvas = document.createElement('canvas');
+        canvas.width = imgW * scale;
+        canvas.height = imgH * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '_');
+        link.download = `diagram_${timestamp}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error('Erreur d\'export PNG:', err);
+        alert('Erreur lors de l\'exportation PNG : ' + err.message);
       } finally {
         URL.revokeObjectURL(url);
       }
@@ -579,12 +603,7 @@ createApp({
 
       dragState.value = null;
       draggingEntity.value = null;
-      const computedRels = computeRelations(entities.value, relations.value, useCrowsFoot.value);
-      const vbStr = computeViewBox(entities.value, computedRels);
-      viewBox.value = vbStr;
-      const [_, __, vbW, vbH] = vbStr.split(' ').map(Number);
-      viewBoxWidth.value = vbW;
-      viewBoxHeight.value = vbH;
+      applyZoom();
       event.currentTarget.releasePointerCapture(event.pointerId);
 
       saveEntityPositions();
@@ -611,7 +630,11 @@ createApp({
 
     function selectAllEntities() {
       if (entities.value.length === 0) return;
-      selectedEntities.value = new Set(entities.value.map(e => e.name));
+      if (selectedEntities.value.size === entities.value.length) {
+        selectedEntities.value = new Set();
+      } else {
+        selectedEntities.value = new Set(entities.value.map(e => e.name));
+      }
     }
 
     restoreEntityPositions();
@@ -638,6 +661,62 @@ createApp({
 
     watch(isSidebarOpen, (val) => localStorage.setItem('isSidebarOpen', val));
     watch(sidebarWidth, (val) => localStorage.setItem('sidebarWidth', val));
+
+    const dragWaypointState = ref(null);
+
+    function onWaypointPointerDown(rel, event) {
+      const svg = event.currentTarget.closest('svg');
+      const pt = getSvgPoint(svg, event.clientX, event.clientY);
+      
+      dragWaypointState.value = {
+        relKey: rel.relKey,
+        startX: pt.x,
+        startY: pt.y,
+        initialDx: manualOffsets.value[rel.relKey] ? manualOffsets.value[rel.relKey].dx : 0,
+        initialDy: manualOffsets.value[rel.relKey] ? manualOffsets.value[rel.relKey].dy : 0,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    function onWaypointPointerMove(event) {
+      if (!dragWaypointState.value) return;
+      const svg = event.currentTarget.closest('svg');
+      const pt = getSvgPoint(svg, event.clientX, event.clientY);
+      
+      const dx = pt.x - dragWaypointState.value.startX;
+      const dy = pt.y - dragWaypointState.value.startY;
+      
+      const relKey = dragWaypointState.value.relKey;
+      manualOffsets.value[relKey] = {
+        dx: dragWaypointState.value.initialDx + dx,
+        dy: dragWaypointState.value.initialDy + dy
+      };
+      
+      renderedRelations.value = computeRelations(entities.value, relations.value, useCrowsFoot.value, manualOffsets.value);
+    }
+
+    function onWaypointPointerUp(event) {
+      if (!dragWaypointState.value) return;
+      dragWaypointState.value = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      applyZoom();
+    }
+
+    function onWaypointDoubleClick(rel) {
+      if (manualOffsets.value[rel.relKey]) {
+        delete manualOffsets.value[rel.relKey];
+        generate();
+      }
+    }
+
+    function onWheel(event) {
+      event.preventDefault();
+      if (event.deltaY < 0) {
+        zoomIn();
+      } else {
+        zoomOut();
+      }
+    }
 
     function toggleSidebar() {
       isSidebarOpen.value = !isSidebarOpen.value;
@@ -672,6 +751,9 @@ createApp({
     setTimeout(() => {
       const svg = document.querySelector('.diagram-svg');
       const wrapper = document.querySelector('.diagram-wrapper');
+      
+      window.addEventListener('resize', applyZoom);
+
       if (svg) {
         svg.addEventListener('wheel', onWheel, { passive: false });
       }
@@ -778,6 +860,7 @@ createApp({
       saveName,
       generate,
       exportSvg,
+      exportPng,
       copyAsImage,
       loadExample,
       isLinkedColumn,
@@ -810,6 +893,12 @@ createApp({
       selectAllEntities,
       toggleSidebar,
       startResize,
+      onWheel,
+      onWaypointPointerDown,
+      onWaypointPointerMove,
+      onWaypointPointerUp,
+      onWaypointDoubleClick,
+      dragWaypointState,
     };
   },
 }).mount('#app');

@@ -4,18 +4,21 @@ Une application web interactive permettant de concevoir et de visualiser des dia
 
 ## ✨ Fonctionnalités Principales
 
-*   **Génération en Temps Réel** : Le diagramme se met à jour dynamiquement pendant que vous tapez grâce au debounce et à l'auto-layout.
+*   **Génération en Temps Réel** : Le diagramme se met à jour dynamiquement pendant que vous tapez grâce à l'auto-layout.
 *   **Import SQL** : Convertit automatiquement vos requêtes `CREATE TABLE` en diagramme visuel.
-*   **Interface Interactive** :
-    *   Glisser-déposer (Drag & Drop) des tables.
-    *   Routage organique des relations via des courbes de Bézier.
-    *   Mise en évidence intelligente : le survol d'une entité estompe celles qui ne lui sont pas liées.
-    *   Zoom, déplacement (Pan), et grille magnétique.
-*   **Design "IDE" Premium** : Panneau latéral redimensionnable, effet Glassmorphism, et barre d'outils compacte.
+*   **Interface Interactive Avancée** :
+    *   **Glisser-déposer (Drag & Drop)** des tables pour les positionner à votre guise.
+    *   **Routage Manuel des Relations** : Ajoutez des points de contrôle (waypoints) sur les relations pour modeler finement leurs courbes (double-clic pour réinitialiser).
+    *   **Canvas Infini (Zoom & Pan)** : Zoom molette centré et déplacement fluide de l'espace de travail sans contrainte de bordures.
+    *   **Sélection Intelligente** : Sélection multiple (Ctrl+A / Bouton), déselection globale (clic dans le vide), et mise en évidence au survol (estompe les entités non liées).
+*   **Design "IDE" Premium** : Panneau latéral redimensionnable, effet Glassmorphism, et barre d'outils d'actions compacte et modernisée.
 *   **Thèmes Personnalisables** : Mode Clair, Sombre, Pastel, Forêt, Rose, etc.
-*   **Gestion de Sauvegarde** : Sauvegardes locales (LocalStorage) de vos schémas et de la disposition de vos entités.
-*   **Exportation** : Exportez facilement votre diagramme aux formats SVG ou PNG.
-*   **Notations** : Supporte l'affichage optionnel de la notation Crow's Foot.
+*   **Gestion de Sauvegarde** : Sauvegardes locales persistantes (LocalStorage) de vos schémas, de la disposition des entités, et de vos courbes personnalisées.
+*   **Exportations Haute Fidélité** :
+    *   Téléchargement direct au format **SVG** vectoriel.
+    *   Téléchargement direct au format **PNG** haute résolution.
+    *   Bouton "Copier l'image" pour copier rapidement le PNG vers le presse-papiers.
+*   **Notations** : Supporte l'affichage optionnel de la notation standard Crow's Foot.
 
 ## 🛠️ Stack Technique
 

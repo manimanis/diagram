@@ -221,6 +221,15 @@ textarea:focus {
   margin-top: 0.75rem;
 }
 
+.actions .btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
 /* ===== Boutons ===== */
 .btn {
   border: none;
@@ -407,7 +416,17 @@ textarea:focus {
   flex-direction: column;
   min-height: 500px;
   overflow: hidden;
-  /* Prevent growing beyond flex bounds initially */
+}
+
+.diagram-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.diagram-wrapper:active {
+  cursor: grabbing;
 }
 
 .empty-state {
@@ -1221,6 +1240,28 @@ textarea:focus {
 
 .theme-preview.dark {
   background: linear-gradient(135deg, #1e293b 50%, #94a3b8 50%);
+}
+
+/* ===== Waypoints ===== */
+.waypoint-control {
+  fill: #3b82f6;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.2s ease, r 0.2s ease;
+}
+
+.relation-group:hover .waypoint-control,
+.waypoint-control.dragging {
+  opacity: 0.8;
+}
+
+.waypoint-control:hover {
+  r: 10;
+  opacity: 1;
+}
+
+.waypoint-control:active, .waypoint-control.dragging {
+  cursor: grabbing;
 }
 
 /* ===== Responsive ===== */
