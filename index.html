@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Diagramme ER — Base de données</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
@@ -14,8 +17,11 @@
     </header>
 
     <main class="layout">
-      <section class="panel panel-input">
-        <label for="schema-input">Représentation textuelle</label>
+      <section class="panel panel-input" v-show="isSidebarOpen" :style="{ width: sidebarWidth + 'px', flexBasis: sidebarWidth + 'px', flexShrink: 0 }">
+        <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <label for="schema-input" style="margin: 0;">Représentation textuelle</label>
+          <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="toggleSidebar" title="Masquer le panneau" style="border: none; background: transparent; font-size: 1.2rem; cursor: pointer;">◀</button>
+        </div>
         <textarea
           id="schema-input"
           v-model="schemaText"
@@ -68,6 +74,8 @@
         </aside>
       </section>
 
+      <div class="layout-splitter" v-show="isSidebarOpen" @mousedown="startResize"></div>
+
       <section class="panel panel-diagram">
         <div v-if="!diagram" class="empty-state">
           <span class="empty-state-icon">📊</span>
@@ -81,49 +89,61 @@
             <span class="stat">🏷️ <span class="num">{{ diagramStats.attributes }}</span> attributs</span>
           </div>
           <div class="diagram-toolbar">
-            <div class="theme-dropdown">
-              <button type="button" class="theme-dropdown-btn" @click="showThemeMenu = !showThemeMenu">
-                🎨 Thème : {{ themeNames[theme] }}
-              </button>
-              <div class="theme-dropdown-menu" v-if="showThemeMenu">
-                <button type="button" class="theme-option" :class="{ active: theme === 'light' }" @click="theme = 'light'; showThemeMenu = false">
-                  <span class="theme-preview light"></span>
-                  Clair
+            <div class="toolbar-left">
+              <button type="button" class="btn btn-primary btn-sm btn-icon" v-if="!isSidebarOpen" @click="toggleSidebar" title="Afficher l'éditeur" style="margin-right: 10px;">▶</button>
+              <div class="theme-dropdown">
+                <button type="button" class="theme-dropdown-btn" @click="showThemeMenu = !showThemeMenu">
+                  🎨 Thème : {{ themeNames[theme] }}
                 </button>
-                <button type="button" class="theme-option" :class="{ active: theme === 'pastel' }" @click="theme = 'pastel'; showThemeMenu = false">
-                  <span class="theme-preview pastel"></span>
-                  Pastel
-                </button>
-                <button type="button" class="theme-option" :class="{ active: theme === 'forest' }" @click="theme = 'forest'; showThemeMenu = false">
-                  <span class="theme-preview forest"></span>
-                  Forêt
-                </button>
-                <button type="button" class="theme-option" :class="{ active: theme === 'rose' }" @click="theme = 'rose'; showThemeMenu = false">
-                  <span class="theme-preview rose"></span>
-                  Rose
-                </button>
-                <button type="button" class="theme-option" :class="{ active: theme === 'dark' }" @click="theme = 'dark'; showThemeMenu = false">
-                  <span class="theme-preview dark"></span>
-                  Sombre
-                </button>
+                <div class="theme-dropdown-menu" v-if="showThemeMenu">
+                  <button type="button" class="theme-option" :class="{ active: theme === 'light' }" @click="theme = 'light'; showThemeMenu = false">
+                    <span class="theme-preview light"></span> Clair
+                  </button>
+                  <button type="button" class="theme-option" :class="{ active: theme === 'pastel' }" @click="theme = 'pastel'; showThemeMenu = false">
+                    <span class="theme-preview pastel"></span> Pastel
+                  </button>
+                  <button type="button" class="theme-option" :class="{ active: theme === 'forest' }" @click="theme = 'forest'; showThemeMenu = false">
+                    <span class="theme-preview forest"></span> Forêt
+                  </button>
+                  <button type="button" class="theme-option" :class="{ active: theme === 'rose' }" @click="theme = 'rose'; showThemeMenu = false">
+                    <span class="theme-preview rose"></span> Rose
+                  </button>
+                  <button type="button" class="theme-option" :class="{ active: theme === 'dark' }" @click="theme = 'dark'; showThemeMenu = false">
+                    <span class="theme-preview dark"></span> Sombre
+                  </button>
+                </div>
               </div>
             </div>
+            
             <div class="toolbar-actions">
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" :class="{ active: snapToGrid }" @click="snapToGrid = !snapToGrid" data-tooltip="Grille magnétique" title="Grille magnétique">⊞</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="selectAllEntities" data-tooltip="Sélectionner tout (Ctrl+A)" title="Sélectionner tout">☰</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomIn" data-tooltip="Zoom avant" title="Zoom avant">+</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomOut" data-tooltip="Zoom arrière" title="Zoom arrière">−</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="resetZoom" data-tooltip="Réinitialiser" title="Réinitialiser le zoom">⟲</button>
-              <span class="zoom-indicator">{{ Math.round(zoomLevel * 100) }}%</span>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="autoLayout" data-tooltip="Auto-layout" title="Réorganiser automatiquement">⊞</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="undo" data-tooltip="Annuler (Ctrl+Z)" title="Annuler">↶</button>
-              <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="redo" data-tooltip="Rétablir (Ctrl+Y)" title="Rétablir">↷</button>
-              <label class="font-size-control" title="Taille de police">
-                <input type="number" v-model.number="fontSize" min="10" max="24" step="1" />
-                px
-              </label>
-              <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg">Exporter SVG</button>
-              <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage">Copier en tant qu'image</button>
+              <div class="toolbar-group">
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" :class="{ active: snapToGrid }" @click="snapToGrid = !snapToGrid" title="Grille magnétique">⊞</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="selectAllEntities" title="Sélectionner tout (Ctrl+A)">☰</button>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomOut" title="Zoom arrière">−</button>
+                <span class="zoom-indicator">{{ Math.round(zoomLevel * 100) }}%</span>
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="zoomIn" title="Zoom avant">+</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="resetZoom" title="Réinitialiser le zoom">⟲</button>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="undo" title="Annuler (Ctrl+Z)">↶</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="redo" title="Rétablir (Ctrl+Y)">↷</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-icon" @click="autoLayout" title="Réorganiser automatiquement">🪄</button>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
+                <label class="font-size-control" title="Taille de police">
+                  <input type="number" v-model.number="fontSize" min="10" max="24" step="1" /> px
+                </label>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
+                <button type="button" class="btn btn-secondary btn-sm" @click="exportSvg" title="Exporter en SVG">SVG</button>
+                <button type="button" class="btn btn-secondary btn-sm" @click="copyAsImage" title="Copier en tant qu'image PNG">PNG</button>
+              </div>
             </div>
           </div>
           <div class="diagram-wrapper" ref="diagramWrapper">
@@ -149,12 +169,14 @@
                   v-for="entity in diagram.entities"
                   :key="entity.name"
                   class="entity-group"
-                  :class="{ dragging: draggingEntity === entity.name, selected: isEntitySelected(entity) }"
+                  :class="{ dragging: draggingEntity === entity.name, selected: isEntitySelected(entity), dimmed: hoveredEntity && hoveredEntity !== entity.name && !isRelated(hoveredEntity, entity.name) }"
                   :transform="'translate(' + entity.x + ',' + entity.y + ')'"
                   @pointerdown="onEntityPointerDown(entity, $event)"
                   @pointermove="onEntityPointerMove(entity, $event)"
                   @pointerup="onEntityPointerUp(entity, $event)"
                   @pointercancel="onEntityPointerUp(entity, $event)"
+                  @mouseenter="hoveredEntity = entity.name"
+                  @mouseleave="hoveredEntity = null"
                 >
                   <rect
                     :width="entity.width"
@@ -219,7 +241,7 @@
 
               <!-- Relations (au-dessus des entités, alignées sur les colonnes) -->
               <g class="relations">
-                <g v-for="(rel, i) in renderedRelations" :key="'rel-' + i">
+                <g v-for="(rel, i) in renderedRelations" :key="'rel-' + i" class="relation-group" :class="{ dimmed: hoveredEntity && rel.from !== hoveredEntity && rel.to !== hoveredEntity }">
                   <path
                     :d="rel.pathD"
                     class="relation-line"

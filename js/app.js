@@ -39,6 +39,13 @@ createApp({
     const fontSize = ref(Number(localStorage.getItem('fontSize')) || 14);
     const snapToGrid = ref(localStorage.getItem('snapToGrid') !== 'false');
     const showThemeMenu = ref(false);
+    const hoveredEntity = ref(null);
+    let generateTimeout = null;
+    
+    const isSidebarOpen = ref(localStorage.getItem('isSidebarOpen') !== 'false');
+    const sidebarWidth = ref(Number(localStorage.getItem('sidebarWidth')) || 380);
+    const isResizing = ref(false);
+
     const themeNames = {
       light: 'Clair',
       pastel: 'Pastel',
@@ -609,7 +616,18 @@ createApp({
 
     restoreEntityPositions();
 
-    watch(schemaText, (val) => localStorage.setItem('schemaText', val));
+    function isRelated(ent1, ent2) {
+      if (!ent1 || !ent2) return false;
+      return relations.value.some(r => (r.from === ent1 && r.to === ent2) || (r.from === ent2 && r.to === ent1));
+    }
+
+    watch(schemaText, (val) => {
+      localStorage.setItem('schemaText', val);
+      clearTimeout(generateTimeout);
+      generateTimeout = setTimeout(() => {
+        generate();
+      }, 500);
+    });
     watch(theme, (val) => localStorage.setItem('theme', val));
     watch(saves, (val) => localStorage.setItem('saves', JSON.stringify(val)), { deep: true });
     watch(useCrowsFoot, (val) => localStorage.setItem('useCrowsFoot', val));
@@ -617,6 +635,39 @@ createApp({
     watch(snapToGrid, (val) => localStorage.setItem('snapToGrid', val));
 
     generate();
+
+    watch(isSidebarOpen, (val) => localStorage.setItem('isSidebarOpen', val));
+    watch(sidebarWidth, (val) => localStorage.setItem('sidebarWidth', val));
+
+    function toggleSidebar() {
+      isSidebarOpen.value = !isSidebarOpen.value;
+    }
+
+    function startResize(event) {
+      isResizing.value = true;
+      document.addEventListener('mousemove', doResize);
+      document.addEventListener('mouseup', stopResize);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    function doResize(event) {
+      if (!isResizing.value) return;
+      let newWidth = event.clientX - 16; // 16px padding
+      if (newWidth < 250) newWidth = 250;
+      if (newWidth > 800) newWidth = 800;
+      sidebarWidth.value = newWidth;
+    }
+
+    function stopResize() {
+      if (isResizing.value) {
+        isResizing.value = false;
+        document.removeEventListener('mousemove', doResize);
+        document.removeEventListener('mouseup', stopResize);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    }
 
     setTimeout(() => {
       const svg = document.querySelector('.diagram-svg');
@@ -731,6 +782,7 @@ createApp({
       loadExample,
       isLinkedColumn,
       isEntitySelected,
+      isRelated,
       onEntityPointerDown,
       onEntityPointerMove,
       onEntityPointerUp,
@@ -748,11 +800,16 @@ createApp({
       fontSize,
       snapToGrid,
       showThemeMenu,
+      hoveredEntity,
+      isSidebarOpen,
+      sidebarWidth,
       themeNames,
       getEntityColor,
       toggleCollapse,
       onSvgDblClick,
       selectAllEntities,
+      toggleSidebar,
+      startResize,
     };
   },
 }).mount('#app');

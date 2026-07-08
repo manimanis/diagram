@@ -1,0 +1,22 @@
+# Fichiers systèmes
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Éditeurs et IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.settings/
+
+# Fichiers de log
+*.log
+
+# Fichiers temporaires ou locaux
+*.tmp
+*.bak

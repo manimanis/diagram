@@ -277,22 +277,27 @@ function isAligned(fromPoint, fromSide, toPoint, toSide) {
   return false;
 }
 
-function generateOrthogonalPath(fromPoint, fromSide, toPoint, toSide) {
+function generateBezierPath(fromPoint, fromSide, toPoint, toSide) {
+  const CURVE_OFFSET = Math.max(60, Math.abs(fromPoint.x - toPoint.x) * 0.35);
+  
+  let cp1x = fromPoint.x + (fromSide === 'right' ? CURVE_OFFSET : -CURVE_OFFSET);
+  let cp1y = fromPoint.y;
+  
+  let cp2x = toPoint.x + (toSide === 'right' ? CURVE_OFFSET : -CURVE_OFFSET);
+  let cp2y = toPoint.y;
+
+  // Si même côté, accentuer la courbure
   if (fromSide === toSide) {
-    // Same side, use offset
-    let offset = fromSide === 'right' ? ORTHOGONAL_OFFSET / 2 : -ORTHOGONAL_OFFSET / 2;
-    let x;
+    let offset = fromSide === 'right' ? CURVE_OFFSET + 40 : -CURVE_OFFSET - 40;
+    cp1x = Math.max(fromPoint.x, toPoint.x) + offset;
+    cp2x = Math.max(fromPoint.x, toPoint.x) + offset;
     if (fromSide === 'left') {
-      x = Math.min(fromPoint.x, toPoint.x);
-    } else {
-      x = Math.max(fromPoint.x, toPoint.x);
+      cp1x = Math.min(fromPoint.x, toPoint.x) + offset;
+      cp2x = Math.min(fromPoint.x, toPoint.x) + offset;
     }
-    let mid = { x: x + offset, y: fromPoint.y };
-    return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
-  } else {
-    let mid = { x: (fromPoint.x  + toPoint.x) / 2, y: (fromPoint.y + toPoint.y)  / 2 }
-    return `M ${fromPoint.x},${fromPoint.y} L ${mid.x},${fromPoint.y} L ${mid.x},${toPoint.y} L ${toPoint.x},${toPoint.y}`;
   }
+
+  return `M ${fromPoint.x},${fromPoint.y} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${toPoint.x},${toPoint.y}`;
 }
 
 function offsetLabel(fromResult) {
@@ -341,7 +346,7 @@ function computeRelations(entities, relations, useCrowsFoot = false) {
     const toPt = toResult.point;
     const aligned = isAligned(fromPt, fromResult.side, toPt, toResult.side);
 
-    let pathD = generateOrthogonalPath(fromPt, fromResult.side, toPt, toResult.side);
+    let pathD = generateBezierPath(fromPt, fromResult.side, toPt, toResult.side);
 
     return {
       from: rel.from,
