@@ -516,6 +516,48 @@ createApp({
       }
     }
 
+    function exportSql() {
+      if (!entities.value.length) return;
+
+      let sql = '-- Schéma SQL généré automatiquement\n\n';
+
+      // 1. CREATE TABLES
+      for (const entity of entities.value) {
+        sql += `CREATE TABLE ${entity.name} (\n`;
+        const lines = [];
+        
+        for (const attr of entity.attributes) {
+          const type = attr.type ? attr.type : 'VARCHAR(255)';
+          lines.push(`  ${attr.name} ${type}`);
+        }
+        
+        const pks = entity.attributes.filter(a => a.isPk).map(a => a.name);
+        if (pks.length > 0) {
+          lines.push(`  PRIMARY KEY (${pks.join(', ')})`);
+        }
+        
+        sql += lines.join(',\n') + '\n);\n\n';
+      }
+
+      // 2. ALTER TABLES
+      if (relations.value.length > 0) {
+        sql += '-- Contraintes de clés étrangères\n\n';
+        for (const rel of relations.value) {
+          sql += `ALTER TABLE ${rel.from}\n`;
+          sql += `  ADD FOREIGN KEY (${rel.via}) REFERENCES ${rel.to}(${rel.viaTarget || rel.via});\n\n`;
+        }
+      }
+
+      const blob = new Blob([sql], { type: 'text/sql' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '_');
+      link.download = `schema_${timestamp}.sql`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
     function loadExample() {
       schemaText.value = EXAMPLE_SCHEMA;
       generate();
@@ -868,6 +910,7 @@ createApp({
       generate,
       exportSvg,
       exportPng,
+      exportSql,
       copyAsImage,
       loadExample,
       isLinkedColumn,
