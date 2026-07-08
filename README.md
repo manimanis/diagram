@@ -41,13 +41,14 @@ L'éditeur de texte (à gauche) attend une grammaire simple pour modéliser la b
 
 ```text
 TableName(
-  colonne1, 
-  colonne2, 
+  colonne1: type1, 
+  colonne2: type2, 
   colonne3, 
   PK[colonne1], 
-  colonne3# -> AutreTable.id
+  colonne3#: type3 -> AutreTable.id
 )
 ```
+- `nomColonne: type` (le type est optionnel).
 - `PK[colonne]` définit la clé primaire.
 - `# -> Table.colonne` définit une clé étrangère.
 

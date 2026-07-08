@@ -1,14 +1,14 @@
-const EXAMPLE_SCHEMA = `Personne(matricule# -> Etudiant.matricule, user, password, PK[matricule#])
-Etudiant(matricule, nom, prenom, dateNaiss, adresse, telephone, PK[matricule])
-Professeur(idProf, nomProf, prenomProf, specialite, email, PK[idProf])
-Cours(idCours, intitule, credits, semestre, PK[idCours])
-Inscription(idEtudiant# -> Etudiant.matricule, idCours# -> Cours.idCours, dateInscription, note, PK[idEtudiant#, idCours#])
-Enseignement(idProf# -> Professeur.idProf, idCours# -> Cours.idCours, anneeAcademique, salle, PK[idProf#, idCours#, anneeAcademique])
-Departement(idDept, nomDept, chefDept# -> Professeur.idProf, PK[idDept])
-Matiere(idMatiere, libelle, coefficient, idDept# -> Departement.idDept, PK[idMatiere])
-Examen(idExamen, type, dateExamen, duree, idMatiere# -> Matiere.idMatiere, PK[idExamen])
-Note(idEtudiant# -> Etudiant.matricule, idExamen# -> Examen.idExamen, valeur, appreciation, PK[idEtudiant#, idExamen#])
-Salle(idSalle, code, capacite, batiment, PK[idSalle])`;
+const EXAMPLE_SCHEMA = `Personne(matricule#: entier -> Etudiant.matricule, user: texte(30), password: varchar(255), PK[matricule#])
+Etudiant(matricule: entier, nom: varchar(50), prenom: varchar(50), dateNaiss: date, adresse: texte, telephone: char(10), PK[matricule])
+Professeur(idProf: entier, nomProf: varchar(50), prenomProf: varchar(50), specialite: texte, email: varchar(100), PK[idProf])
+Cours(idCours: entier, intitule: texte, credits: int, semestre: int, PK[idCours])
+Inscription(idEtudiant#: entier -> Etudiant.matricule, idCours#: entier -> Cours.idCours, dateInscription: date, note: float, PK[idEtudiant#, idCours#])
+Enseignement(idProf#: entier -> Professeur.idProf, idCours#: entier -> Cours.idCours, anneeAcademique: int, salle: varchar(20), PK[idProf#, idCours#, anneeAcademique])
+Departement(idDept: int, nomDept: varchar(100), chefDept#: int -> Professeur.idProf, PK[idDept])
+Matiere(idMatiere: int, libelle: varchar(100), coefficient: float, idDept#: int -> Departement.idDept, PK[idMatiere])
+Examen(idExamen: int, type: varchar(20), dateExamen: datetime, duree: int, idMatiere#: int -> Matiere.idMatiere, PK[idExamen])
+Note(idEtudiant#: int -> Etudiant.matricule, idExamen#: int -> Examen.idExamen, valeur: float, appreciation: texte, PK[idEtudiant#, idExamen#])
+Salle(idSalle: int, code: varchar(10), capacite: int, batiment: char(1), PK[idSalle])`;
 
 const { createApp, ref, computed, watch } = Vue;
 
@@ -45,6 +45,12 @@ createApp({
     const isSidebarOpen = ref(localStorage.getItem('isSidebarOpen') !== 'false');
     const sidebarWidth = ref(Number(localStorage.getItem('sidebarWidth')) || 380);
     const isResizing = ref(false);
+    
+    const showTypes = ref(localStorage.getItem('showTypes') !== 'false');
+    watch(showTypes, (val) => {
+      localStorage.setItem('showTypes', val);
+      generate();
+    });
 
     const manualOffsets = ref(JSON.parse(localStorage.getItem('manualOffsets') || '{}'));
     watch(manualOffsets, (val) => localStorage.setItem('manualOffsets', JSON.stringify(val)), { deep: true });
@@ -75,6 +81,7 @@ createApp({
             viewBoxWidth: viewBoxWidth.value, 
             viewBoxHeight: viewBoxHeight.value,
             useCrowsFoot: useCrowsFoot.value,
+            showTypes: showTypes.value,
             fontSize: fontSize.value
           }
         : null
@@ -199,7 +206,7 @@ createApp({
       if (entities.value.length === 0) return;
       saveState();
       
-      const positioned = layoutEntities(entities.value, relations.value);
+      const positioned = layoutEntities(entities.value, relations.value, showTypes.value);
       
       for (let i = 0; i < entities.value.length; i++) {
         entities.value[i].x = positioned[i].x;
@@ -290,7 +297,7 @@ createApp({
           throw new Error(data.error || 'Erreur lors de l\'analyse du schéma.');
         }
 
-        const built = buildDiagram(data.entities, data.relations, useCrowsFoot.value, manualOffsets.value);
+        const built = buildDiagram(data.entities, data.relations, useCrowsFoot.value, manualOffsets.value, showTypes.value);
         entities.value = built.entities;
         relations.value = built.relations;
 
@@ -899,6 +906,7 @@ createApp({
       onWaypointPointerUp,
       onWaypointDoubleClick,
       dragWaypointState,
+      showTypes,
     };
   },
 }).mount('#app');

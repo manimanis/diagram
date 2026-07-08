@@ -27,7 +27,7 @@
           v-model="schemaText"
           rows="12"
           spellcheck="false"
-          placeholder="Eleve(idEleve, nomEl, PrenomEl, dnEl, PK[idEleve])&#10;Classe(idClasse, libelleCl, PK[idClasse])&#10;ClasseEleve(idEleve#, idClasse#, annee_scolaire, PK[idEleve#, idClasse#, annee_scolaire])"
+          placeholder="Eleve(idEleve: entier, nomEl: varchar(50), PrenomEl: varchar(50), dnEl: date, PK[idEleve])&#10;Classe(idClasse: int, libelleCl: varchar(20), PK[idClasse])&#10;ClasseEleve(idEleve#: entier, idClasse#: int, annee_scolaire: int, PK[idEleve#, idClasse#, annee_scolaire])"
         ></textarea>
 
         <div class="actions">
@@ -139,6 +139,22 @@
               </div>
               <span class="toolbar-divider"></span>
               <div class="toolbar-group">
+                <label class="toggle" title="Afficher/Masquer les types de données">
+                  <input type="checkbox" v-model="showTypes" />
+                  <span class="slider"></span>
+                  <span class="toggle-label">Types</span>
+                </label>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
+                <label class="toggle" title="Basculer vers la notation de patte de corbeau (Crow's Foot)">
+                  <input type="checkbox" v-model="useCrowsFoot" />
+                  <span class="slider"></span>
+                  <span class="toggle-label">Crow's Foot</span>
+                </label>
+              </div>
+              <span class="toolbar-divider"></span>
+              <div class="toolbar-group">
                 <label class="font-size-control" title="Taille de police">
                   <input type="number" v-model.number="fontSize" min="10" max="24" step="1" /> px
                 </label>
@@ -229,7 +245,7 @@
                       :class="{ 'is-pk': attr.isPk, 'is-fk': attr.isFk, 'is-linked': isLinkedColumn(entity.name, attr.name) }"
                       :style="{ fontSize: diagram.fontSize + 'px' }"
                     >
-                      {{ attr.name }}<tspan v-if="attr.isFk">#</tspan>
+                      {{ attr.name }}<tspan v-if="attr.isFk">#</tspan><tspan v-if="attr.type && diagram.showTypes" class="attribute-type">: {{ attr.type }}</tspan>
                     </text>
                     <!-- Ligne de soulignement pour les clés primaires -->
                     <line

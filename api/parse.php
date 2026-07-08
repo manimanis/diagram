@@ -66,22 +66,32 @@ function parseSchema(string $text): array
         $attributes = [];
         foreach ($rawAttributes as $rawAttr) {
             $isFk = false;
-            $name = '';
             $references = null;
+            $type = null;
 
-            // Syntaxe explicite : attrName# -> Entity.attrName
-            if (preg_match('/^(\w+)#\s*->\s*(\w+)\.(\w+)$/u', $rawAttr, $refMatch)) {
-                $name = $refMatch[1];
-                $isFk = true;
+            // Extraire la référence explicite si présente (ex: -> Table.colonne)
+            if (preg_match('/->\s*(\w+)\.(\w+)$/u', $rawAttr, $refMatch)) {
                 $references = [
-                    'entity' => $refMatch[2],
-                    'attribute' => $refMatch[3],
+                    'entity' => $refMatch[1],
+                    'attribute' => $refMatch[2],
                 ];
-            } elseif (str_ends_with($rawAttr, '#')) {
+                // Retirer la partie référence pour simplifier l'analyse suivante
+                $rawAttr = preg_replace('/\s*->\s*\w+\.\w+$/u', '', $rawAttr);
+            }
+
+            // Détecter si c'est une clé étrangère (présence de #)
+            if (str_contains($rawAttr, '#')) {
                 $isFk = true;
-                $name = normalizeAttributeName($rawAttr);
+                $rawAttr = str_replace('#', '', $rawAttr);
+            }
+
+            // Extraire le nom et le type éventuel (nom: type)
+            if (str_contains($rawAttr, ':')) {
+                $parts = explode(':', $rawAttr, 2);
+                $name = normalizeAttributeName(trim($parts[0]));
+                $type = trim($parts[1]);
             } else {
-                $name = normalizeAttributeName($rawAttr);
+                $name = normalizeAttributeName(trim($rawAttr));
             }
 
             $attrEntry = [
@@ -89,6 +99,11 @@ function parseSchema(string $text): array
                 'isPk' => in_array($name, $pkNames, true),
                 'isFk' => $isFk,
             ];
+            
+            if ($type !== null && $type !== '') {
+                $attrEntry['type'] = $type;
+            }
+            
             if ($references !== null) {
                 $attrEntry['references'] = $references;
             }

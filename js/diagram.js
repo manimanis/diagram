@@ -3,20 +3,21 @@ const HEADER_HEIGHT = 32;
 const ROW_HEIGHT = 22;
 const ATTRIBUTE_FIRST_Y = 48;
 const MIN_ENTITY_WIDTH = 180;
-const CHAR_WIDTH = 7.2;
-const MARGIN = 60;
+const CHAR_WIDTH = 9.0;
+const MARGIN = 80;
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
 const ORTHOGONAL_OFFSET = 36;
 
-function measureEntity(entity) {
+function measureEntity(entity, showTypes = true) {
   const titleWidth = entity.name.length * CHAR_WIDTH + ENTITY_PADDING * 2;
-  let maxAttrWidth = 0;
+  let maxAttrWidth = titleWidth;
 
   for (const attr of entity.attributes) {
     let label = attr.name;
     if (attr.isPk) label += ' PK';
     if (attr.isFk) label += ' FK';
+    if (attr.type && showTypes) label += ': ' + attr.type;
     maxAttrWidth = Math.max(maxAttrWidth, label.length * CHAR_WIDTH + ENTITY_PADDING * 2);
   }
 
@@ -31,10 +32,10 @@ function maxCardinality(merise) {
   return match ? match[1] : merise;
 }
 
-function layoutEntities(entities, relations) {
+function layoutEntities(entities, relations, showTypes = true) {
   const positioned = entities.map((entity) => ({
     ...entity,
-    ...measureEntity(entity),
+    ...measureEntity(entity, showTypes),
     x: 0,
     y: 0,
   }));
@@ -86,7 +87,7 @@ function layoutEntities(entities, relations) {
         startName = name;
       }
     }
-    
+
     // BFS layering
     const q = [startName];
     layer[startName] = 0;
@@ -114,13 +115,13 @@ function layoutEntities(entities, relations) {
 
   // ---------- 5. Determine order within each layer (barycenter for fewer crossings) ----------
   const entityMap = Object.fromEntries(positioned.map((e) => [e.name, e]));
-  
+
   for (let iter = 0; iter < 20; iter++) {
     let improved = false;
     for (let li = 0; li < layerKeys.length; li++) {
       const lk = layerKeys[li];
       const group = byLayer[lk];
-      
+
       group.forEach((entity) => {
         let sum = 0;
         let count = 0;
@@ -144,7 +145,7 @@ function layoutEntities(entities, relations) {
         }
         entity._bary = count > 0 ? sum / count : entity.y + entity.height / 2;
       });
-      
+
       const oldOrder = group.map(e => e.name).join(',');
       group.sort((a, b) => {
         if (a._bary >= 0 && b._bary >= 0) return a._bary - b._bary;
@@ -158,8 +159,8 @@ function layoutEntities(entities, relations) {
   }
 
   // ---------- 6. Position entities ----------
-  const V_GAP = 40;
-  const H_GAP = 60;
+  const V_GAP = 60;
+  const H_GAP = 100;
   const START_X = 20;
   const START_Y = 20;
 
@@ -181,13 +182,13 @@ function layoutEntities(entities, relations) {
 
   // ---------- 7. Centering passes (forward + backward) ----------
   function centerPass(forward) {
-    const indices = forward 
+    const indices = forward
       ? Array.from({ length: layerKeys.length }, (_, i) => i)
       : Array.from({ length: layerKeys.length }, (_, i) => layerKeys.length - 1 - i);
-    
+
     for (const li of indices) {
       if ((forward && li === 0) || (!forward && li === layerKeys.length - 1)) continue;
-      
+
       const lk = layerKeys[li];
       const group = byLayer[lk];
       const neighborLayer = forward ? layerKeys[li - 1] : layerKeys[li + 1];
@@ -294,10 +295,10 @@ function generateBezierPath(fromPoint, fromSide, toPoint, toSide, manualOffset) 
   }
 
   const CURVE_OFFSET = Math.max(60, Math.abs(fromPoint.x - toPoint.x) * 0.35);
-  
+
   let cp1x = fromPoint.x + (fromSide === 'right' ? CURVE_OFFSET : -CURVE_OFFSET);
   let cp1y = fromPoint.y;
-  
+
   let cp2x = toPoint.x + (toSide === 'right' ? CURVE_OFFSET : -CURVE_OFFSET);
   let cp2y = toPoint.y;
 
@@ -319,7 +320,7 @@ function offsetLabel(fromResult) {
   let sgn = fromResult.side === 'right' ? 1 : -1;
   return {
     x: fromResult.point.x + sgn * RELATION_OFFSET / 4,
-    y: fromResult.point.y - 5 
+    y: fromResult.point.y - 5
   }
 }
 
@@ -447,8 +448,8 @@ function getSvgPoint(svg, clientX, clientY) {
   return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-function buildDiagram(entities, relations, useCrowsFoot = false, manualOffsets = {}) {
-  const positionedEntities = layoutEntities(entities, relations);
+function buildDiagram(entities, relations, useCrowsFoot = false, manualOffsets = {}, showTypes = true) {
+  const positionedEntities = layoutEntities(entities, relations, showTypes);
   const computedRels = computeRelations(positionedEntities, relations, useCrowsFoot, manualOffsets);
   const viewBoxStr = computeViewBox(positionedEntities, computedRels);
   console.log(viewBoxStr);
